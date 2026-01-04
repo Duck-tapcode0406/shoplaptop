@@ -1,0 +1,232 @@
+/* === HERO BANNER (Trang chủ) === */
+.hero-banner {
+    padding: 6rem 2rem;
+    background: linear-gradient(135deg, var(--primary-color), #0056b3);
+    background-size: cover;
+    background-position: center;
+    color: var(--white-color);
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.hero-banner h1 {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+.hero-banner p {
+    font-size: 1.25rem;
+    margin-bottom: 2rem;
+    opacity: 0.9;
+}
+
+.home-search-bar {
+    max-width: 600px;
+    margin: 0 auto;
+    display: flex;
+    border-radius: 50px;
+    overflow: hidden;
+    background-color: var(--white-color);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.home-search-bar input {
+    border: none;
+    outline: none;
+    padding: 1rem 1.5rem;
+    font-size: 1rem;
+    width: 100%;
+    color: var(--dark-color);
+}
+
+.home-search-bar .btn-search {
+    border: none;
+    outline: none;
+    background-color: var(--secondary-color);
+    color: var(--white-color);
+    padding: 0 2rem;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.home-search-bar .btn-search:hover {
+    background-color: #0056b3;
+}
+
+
+/* === KHU VỰC SẢN PHẨM (Sách mới, Bán chạy) === */
+.product-section {
+    margin-bottom: 3rem;
+    
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.section-header h2 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.section-header .view-all {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--secondary-color);
+}
+
+.section-header .view-all i {
+    margin-left: 5px;
+}
+
+/* Lưới sản phẩm (Grid) - Dùng cho trang chủ - 4 sản phẩm mỗi hàng */
+.home-section .product-grid,
+.product-grid {
+    display: grid;
+    /* Cố định 4 cột mỗi hàng */
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+}
+
+/* Thẻ sản phẩm (Card) */
+.product-card {
+    background-color: var(--white-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    transition: all 0.3s ease;
+    overflow: hidden; /* Giúp bo góc ảnh */
+    display: flex;
+    flex-direction: column;
+}
+
+.product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 70, 106, 0.1);
+}
+
+.product-image-link {
+    background-color: var(--light-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 250px; /* Cố định chiều cao ảnh */
+}
+
+.product-image {
+    width: auto;
+    max-height: 100%;
+    object-fit: contain; /* Đảm bảo ảnh vừa vặn, không bị méo */
+}
+
+.product-title {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--dark-color);
+    padding: 0.75rem 1rem 0.25rem 1rem;
+    /* Cắt ngắn nếu quá 2 dòng */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;  
+    overflow: hidden;
+    height: 3rem; /* (1rem * 1.5 line-height * 2 lines) */
+}
+
+.product-author {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    padding: 0 1rem 0.5rem 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.product-price {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--danger-color);
+    padding: 0 1rem 0.75rem 1rem;
+}
+
+/* Nút */
+.product-card form {
+    margin-top: auto; /* Đẩy nút xuống dưới cùng */
+    padding: 0 1rem 1rem 1rem;
+    display: flex;
+}
+
+.btn {
+    display: inline-block;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-align: center;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background-color: var(--secondary-color);
+    color: var(--white-color);
+}
+.btn-primary:hover {
+    background-color: var(--primary-color);
+    color: var(--white-color);
+}
+
+.btn-secondary {
+    background-color: var(--light-color);
+    color: var(--dark-color);
+    border: 1px solid var(--border-color);
+}
+.btn-secondary:hover {
+    background-color: #e2e6ea;
+}
+
+.btn-add-to-cart {
+    width: 100%;
+}
+/* === [SỬA LỖI] Lưới sản phẩm (Grid) - Responsive === */
+/* Override inline style từ JSP - sử dụng CSS responsive */
+.product-list-content .product-grid {
+    display: grid !important;
+    /* Tự động điều chỉnh số cột dựa trên màn hình */
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+    gap: 1.5rem;
+}
+
+/* --- Responsive (Quan trọng): --- */
+/* Desktop: 4 sản phẩm/hàng */
+@media (min-width: 1200px) {
+    .product-list-content .product-grid,
+    .product-grid {
+        grid-template-columns: repeat(4, 1fr) !important;
+    }
+}
+
+/* Tablet: 2-3 sản phẩm/hàng */
+@media (max-width: 992px) {
+    .product-list-content .product-grid,
+    .product-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+    }
+}
+
+/* Mobile: 1-2 sản phẩm/hàng */
+@media (max-width: 576px) {
+    .product-list-content .product-grid,
+    .product-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+}

@@ -1,0 +1,23 @@
+# API Configuration - Chứa API keys nhạy cảm
+api/config.php
+
+# Database credentials (nếu có file riêng)
+includes/db_config.php
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+
+
+
+

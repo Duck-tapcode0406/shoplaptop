@@ -1,0 +1,114 @@
+main.container {
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+}
+
+.news-list-page h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.news-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2 cột */
+    gap: 2rem;
+}
+
+.news-card {
+    display: flex;
+    gap: 1.5rem;
+    background: var(--white-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.06);
+}
+
+.news-card-image {
+    width: 200px;
+    flex-shrink: 0;
+}
+.news-card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.news-card-content {
+    padding: 1.5rem 1.5rem 1.5rem 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.news-date, .news-author {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+.news-date i, .news-author i {
+    margin-right: 5px;
+}
+
+.news-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+}
+.news-title a {
+    color: var(--dark-color);
+}
+.news-title a:hover {
+    color: var(--primary-color);
+}
+
+.news-excerpt {
+    font-size: 0.95rem;
+    line-height: 1.7;
+    margin-bottom: 1rem;
+    flex-grow: 1;
+}
+
+/* Trang Chi tiết Tin Tức */
+.news-detail-page {
+    max-width: 800px; /* Giới hạn chiều rộng để dễ đọc */
+    margin: 0 auto;
+    background: var(--white-color);
+    padding: 2.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.news-detail-page h1.news-title {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+
+.news-meta {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 1rem;
+}
+
+.news-main-image {
+    width: 100%;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+}
+
+.news-content {
+    font-size: 1.05rem;
+    line-height: 1.8;
+}
+.news-content p {
+    margin-bottom: 1.5rem;
+}
+.news-content h3, .news-content h4 {
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+}
