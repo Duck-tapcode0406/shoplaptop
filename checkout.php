@@ -552,7 +552,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
-    <script src="js/location-verification.js"></script>
+    <!-- Location verification script already loaded via header.php -->
     <script>
         // Khởi tạo Location Verification
         window.locationVerificationInstance = new LocationVerification({

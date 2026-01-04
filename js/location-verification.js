@@ -25,12 +25,18 @@ class LocationVerification {
 
             const options = {
                 enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
+                timeout: 15000, // Tăng timeout lên 15s
+                maximumAge: 60000 // Cache 1 phút
             };
+
+            // Timeout backup để đảm bảo cleanup
+            const timeoutId = setTimeout(() => {
+                reject(new Error('Yêu cầu lấy vị trí hết thời gian chờ'));
+            }, 15000);
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
+                    clearTimeout(timeoutId);
                     const location = {
                         latitude: position.coords.latitude,
                         longitude: position.coords.longitude,
@@ -39,6 +45,7 @@ class LocationVerification {
                     resolve(location);
                 },
                 (error) => {
+                    clearTimeout(timeoutId);
                     let errorMessage = 'Không thể lấy vị trí';
                     switch(error.code) {
                         case error.PERMISSION_DENIED:
@@ -167,7 +174,12 @@ class LocationVerification {
                 throw new Error('Không tìm thấy địa điểm gần đây');
             }
         } catch (error) {
+            // Đảm bảo cleanup overlay khi có lỗi
             this.hideLoading();
+            // Đợi một chút để đảm bảo overlay được remove
+            setTimeout(() => {
+                this.hideLoading();
+            }, 100);
             this.showError(error.message);
             if (this.onError) {
                 this.onError(error.message);
@@ -498,4 +510,74 @@ if (!document.getElementById('location-verification-styles')) {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = LocationVerification;
 }
+
+(function(){
+    'use strict';
+
+    function _hideLocationLoading(){
+        try{
+            var loading = document.getElementById('location-loading');
+            if(loading){ loading.style.display = 'none'; loading.remove(); }
+            var modal = document.querySelector('.location-modal');
+            if(modal) modal.remove();
+            document.body.classList.remove('location-modal-open');
+            document.body.style.overflow = '';
+        }catch(e){ console.warn('hideLocationLoading error', e); }
+    }
+
+    function _showLocationLoading(msg){
+        try{
+            var loading = document.getElementById('location-loading');
+            if(!loading){
+                loading = document.createElement('div');
+                loading.id = 'location-loading';
+                loading.className = 'location-loading';
+                loading.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);z-index:1050;';
+                document.body.appendChild(loading);
+            }
+            loading.innerHTML = '<div class="location-loading-content" style="background:#fff;padding:18px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.2);min-width:220px;text-align:center;"><div class="location-loading-spinner" style="width:36px;height:36px;border-radius:50%;border:4px solid #eee;border-top-color:var(--primary);"></div><p style="margin-top:12px;font-weight:600;color:#333;">'+ (msg||'Đang xử lý...') +'</p></div>';
+            loading.style.display='flex';
+            document.body.classList.add('location-modal-open');
+            document.body.style.overflow = 'hidden';
+        }catch(e){ console.warn('showLocationLoading error', e); }
+    }
+
+    document.addEventListener('keydown', function(e){
+        if(e.key === 'Escape' || e.key === 'Esc'){
+            _hideLocationLoading();
+        }
+    }, false);
+
+    window.addEventListener('beforeunload', function(){
+        _hideLocationLoading();
+    });
+
+    if(typeof LocationVerification !== 'undefined'){
+        var p = LocationVerification.prototype;
+        p.hideLoading = function(){ _hideLocationLoading(); };
+        p.showLoading = function(msg){ _showLocationLoading(msg); };
+        var origShowLocationConfirmation = p.showLocationConfirmation;
+        if(typeof origShowLocationConfirmation === 'function'){
+            p.showLocationConfirmation = function(place, location){
+                origShowLocationConfirmation.call(this, place, location);
+                setTimeout(function(){
+                    var closeBtn = document.querySelector('.location-modal .location-modal-close');
+                    if(closeBtn){
+                        closeBtn.addEventListener('click', function(){
+                            _hideLocationLoading();
+                        });
+                    }
+                    document.querySelectorAll('.location-modal').forEach(function(m){
+                        m.addEventListener('click', function(evt){
+                            if(evt.target === m){
+                                m.remove();
+                                _hideLocationLoading();
+                            }
+                        });
+                    });
+                }, 50);
+            };
+        }
+    }
+})();
 

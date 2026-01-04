@@ -289,54 +289,42 @@ $result = $stmt->get_result();
             <h3 style="margin-bottom: var(--space-lg);">
                 <i class="fas fa-filter" style="margin-right: var(--space-sm);"></i>Tìm Kiếm & Lọc
             </h3>
-            
-            <div class="grid grid-3">
-                <!-- Search by name -->
-                <form method="GET" action="" style="grid-column: span 2;">
-                    <div class="filter-group">
-                        <label for="search">
-                            <i class="fas fa-search" style="margin-right: 8px;"></i>Tìm kiếm sản phẩm
-                        </label>
-                        <input type="text" name="search" id="search" placeholder="Nhập tên sản phẩm..." value="<?php echo isset($_GET['search']) ? htmlspecialchars($_GET['search']) : ''; ?>">
+
+            <!-- BEGIN: unified search & filter -->
+            <form method="GET" action="" class="filters-grid-form">
+                <div class="grid grid-3" style="align-items:end;">
+                    <div style="grid-column: span 2;">
+                        <div class="filter-group">
+                            <label for="search"><i class="fas fa-search" style="margin-right: 8px;"></i>Tìm kiếm sản phẩm</label>
+                            <input type="text" name="search" id="search" placeholder="Nhập tên sản phẩm..." value="<?php echo isset($_GET['search']) ? htmlspecialchars($_GET['search']) : ''; ?>">
+                        </div>
                     </div>
-                </form>
-
-                <!-- Price Filter -->
-                <form method="GET" action="">
-                    <button type="submit" class="btn btn-primary btn-block" style="width: 100%; margin-top: 22px;">
-                        <i class="fas fa-sliders-h"></i> Lọc
-                    </button>
-                </form>
-            </div>
-
-            <div class="grid grid-3">
-                <!-- Min Price -->
-                <form method="GET" action="">
-                    <div class="filter-group">
-                        <label for="min_price">
-                            <i class="fas fa-dollar-sign" style="margin-right: 8px;"></i>Giá tối thiểu
-                        </label>
-                        <input type="number" name="min_price" id="min_price" placeholder="0" value="<?php echo isset($_GET['min_price']) && $_GET['min_price'] !== '' ? htmlspecialchars($_GET['min_price']) : ''; ?>" min="0">
+                    <div style="display:flex;gap:12px;justify-content:flex-end;">
+                        <button type="submit" class="btn btn-primary" style="height:44px;min-width:120px;">
+                            <i class="fas fa-sliders-h"></i> Lọc
+                        </button>
                     </div>
-                </form>
+                </div>
 
-                <!-- Max Price -->
-                <form method="GET" action="">
-                    <div class="filter-group">
-                        <label for="max_price">
-                            <i class="fas fa-dollar-sign" style="margin-right: 8px;"></i>Giá tối đa
-                        </label>
-                        <input type="number" name="max_price" id="max_price" placeholder="Không giới hạn" value="<?php echo isset($_GET['max_price']) && $_GET['max_price'] !== '' && $_GET['max_price'] !== '999999999' ? htmlspecialchars($_GET['max_price']) : ''; ?>" min="0">
+                <div class="grid grid-3" style="margin-top:12px;align-items:end;">
+                    <div>
+                        <div class="filter-group">
+                            <label for="min_price"><i class="fas fa-dollar-sign" style="margin-right: 8px;"></i>Giá tối thiểu</label>
+                            <input type="number" name="min_price" id="min_price" placeholder="0" value="<?php echo isset($_GET['min_price']) && $_GET['min_price'] !== '' ? htmlspecialchars($_GET['min_price']) : ''; ?>" min="0">
+                        </div>
                     </div>
-                </form>
-
-                <!-- Reset Filters -->
-                <form method="GET" action="">
-                    <button type="submit" class="btn btn-secondary" style="width: 100%; margin-top: 22px;">
-                        <i class="fas fa-times"></i> Xóa Lọc
-                    </button>
-                </form>
-            </div>
+                    <div>
+                        <div class="filter-group">
+                            <label for="max_price"><i class="fas fa-dollar-sign" style="margin-right: 8px;"></i>Giá tối đa</label>
+                            <input type="number" name="max_price" id="max_price" placeholder="Không giới hạn" value="<?php echo isset($_GET['max_price']) && $_GET['max_price'] !== '' && $_GET['max_price'] !== '999999999' ? htmlspecialchars($_GET['max_price']) : ''; ?>" min="0">
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:12px;justify-content:flex-end;">
+                        <a href="index.php" class="btn btn-secondary" style="height:44px;min-width:120px;display:flex;align-items:center;justify-content:center;text-decoration:none;">× Xóa Lọc</a>
+                    </div>
+                </div>
+            </form>
+            <!-- END: unified search & filter -->
         </div>
 
         <!-- Products Section -->
@@ -381,14 +369,21 @@ $result = $stmt->get_result();
                     <div class="product-card">
                         <!-- Product Image -->
                         <div class="product-image-wrapper">
-                            <?php 
-                            $image_path = !empty($row['path']) ? htmlspecialchars($row['path']) : 'images/placeholder.png';
-                            // Remove 'admin/' prefix if it exists in the path
-                            if (strpos($image_path, 'admin/') === 0) {
-                                $image_path = substr($image_path, 6);
+                            <?php
+                            $rawPath = isset($row['path']) ? trim($row['path']) : '';
+                            $cleanPath = ltrim($rawPath, "/\\");
+                            if (strpos($cleanPath, 'admin/') === 0) {
+                                $cleanPath = substr($cleanPath, 6);
+                            }
+                            if (strpos($cleanPath, 'uploads/') === 0) {
+                                $imagePath = $cleanPath;
+                            } elseif (!empty($cleanPath)) {
+                                $imagePath = 'uploads/' . $cleanPath;
+                            } else {
+                                $imagePath = 'images/no-image.png';
                             }
                             ?>
-                            <img src="<?php echo $image_path; ?>" alt="<?php echo htmlspecialchars($row['name']); ?>" class="product-image" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23f0f0f0%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22Arial%22 font-size=%2216%22 fill=%22%23999%22%3ENo Image%3C/text%3E%3C/svg%3E'">
+                            <img src="<?php echo htmlspecialchars($imagePath); ?>" alt="<?php echo htmlspecialchars($row['name']); ?>" class="product-image" style="width:100%;height:220px;object-fit:cover;border-radius:8px;background:#f3f3f3;">
                             
                             <!-- Sale Badge -->
                             <?php if ($is_on_sale): ?>

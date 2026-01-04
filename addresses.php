@@ -448,7 +448,7 @@ if ($addresses_table_exists) {
 
     <?php include 'includes/footer.php'; ?>
 
-    <script src="js/location-verification.js"></script>
+    <!-- Location verification script already loaded via header.php -->
     <script>
         // Khởi tạo Location Verification
         window.locationVerificationInstance = new LocationVerification({
