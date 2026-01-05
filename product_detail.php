@@ -108,6 +108,24 @@ if ($reviews_table_exists) {
         }
     }
 }
+
+// Check if product is in wishlist
+$in_wishlist = false;
+if (isset($_SESSION['user_id'])) {
+    // Check if wishlist table exists
+    $check_wishlist_table = $conn->query("SHOW TABLES LIKE 'wishlist'");
+    if ($check_wishlist_table && $check_wishlist_table->num_rows > 0) {
+        $user_id = $_SESSION['user_id'];
+        $check_wishlist = $conn->prepare("SELECT id FROM wishlist WHERE user_id = ? AND product_id = ?");
+        if ($check_wishlist) {
+            $check_wishlist->bind_param('ii', $user_id, $product_id);
+            $check_wishlist->execute();
+            $wishlist_result = $check_wishlist->get_result();
+            $in_wishlist = $wishlist_result->num_rows > 0;
+            $check_wishlist->close();
+        }
+    }
+}
 ?>
 <?php include 'includes/header.php'; ?>
 <!DOCTYPE html>

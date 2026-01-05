@@ -564,29 +564,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 console.error('Lỗi:', message);
             },
             onLocationFound: function(place, location) {
-                // Tự động điền form với thông tin địa chỉ
-                if (place.address) {
-                    document.getElementById('shipping_address').value = place.address;
-                }
-                if (place.title) {
-                    // Có thể sử dụng title làm địa chỉ nếu không có address
-                    if (!place.address) {
-                        document.getElementById('shipping_address').value = place.title;
-                    }
+                // Tự động điền form với thông tin địa chỉ - CHỈ VỊ TRÍ
+                const address = place.address || place.Địa_chỉ || '';
+                if (address) {
+                    document.getElementById('shipping_address').value = address;
+                } else if (place.title || place.tiêu_đề) {
+                    document.getElementById('shipping_address').value = place.title || place.tiêu_đề;
                 }
                 
                 // Trích xuất thành phố từ địa chỉ
-                if (place.address) {
-                    const addressParts = place.address.split(',');
+                if (address) {
+                    const addressParts = address.split(',');
                     if (addressParts.length > 0) {
-                        document.getElementById('shipping_city').value = addressParts[addressParts.length - 1].trim();
+                        let city = addressParts[addressParts.length - 1].trim();
+                        // Loại bỏ mã bưu chính nếu có
+                        city = city.replace(/\d{5,6}/g, '').trim();
+                        document.getElementById('shipping_city').value = city;
                     }
                 }
                 
-                // Điền số điện thoại nếu có
-                if (place.phone) {
-                    document.getElementById('shipping_phone').value = place.phone;
-                }
+                // KHÔNG điền số điện thoại - giữ nguyên từ thông tin cá nhân
+                // Tên cũng giữ nguyên từ thông tin cá nhân, nhưng có thể sửa
             }
         });
 

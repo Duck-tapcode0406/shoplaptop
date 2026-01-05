@@ -89,7 +89,16 @@ class LocationVerification {
                     ll: ll
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                // Kiểm tra response có phải JSON không
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    return response.text().then(text => {
+                        throw new Error('Response không phải JSON: ' + text.substring(0, 100));
+                    });
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     resolve(data.places);
@@ -118,7 +127,16 @@ class LocationVerification {
                     location: locationData
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                // Kiểm tra response có phải JSON không
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    return response.text().then(text => {
+                        throw new Error('Response không phải JSON: ' + text.substring(0, 100));
+                    });
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     if (this.onSuccess) {
@@ -311,15 +329,17 @@ class LocationVerification {
         try {
             this.showLoading('Đang cập nhật địa chỉ...');
 
-            // Chuẩn hóa dữ liệu từ SerpAPI format
+            // Chuẩn hóa dữ liệu từ SerpAPI format - CHỈ LẤY VỊ TRÍ
+            const address = place.address || place.Địa_chỉ || '';
             const addressData = {
                 latitude: location.latitude,
                 longitude: location.longitude,
-                address: place.address || place.Địa_chỉ || '',
+                address: address,
                 title: place.title || place.tiêu_đề || '',
-                phone: place.phone || place.điện_thoại || '',
-                city: this.extractCity(place.address || place.Địa_chỉ || ''),
-                district: this.extractDistrict(place.address || place.Địa_chỉ || ''),
+                // KHÔNG gửi phone - sẽ lấy từ thông tin cá nhân
+                city: this.extractCity(address),
+                district: this.extractDistrict(address),
+                ward: this.extractWard(address),
                 gps_coordinates: {
                     latitude: place.gps_coordinates?.latitude || place['tọa độ GPS']?.vĩ_độ || location.latitude,
                     longitude: place.gps_coordinates?.longitude || place['tọa độ GPS']?.kinh_độ || location.longitude
@@ -331,12 +351,11 @@ class LocationVerification {
             
             this.hideLoading();
             document.querySelector('.location-modal')?.remove();
-            this.showSuccess('Đã cập nhật địa chỉ giao hàng thành công!');
             
-            // Reload trang để hiển thị địa chỉ mới
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
+            // Tự động điền vào form thay vì reload
+            this.fillFormWithAddress(addressData);
+            
+            this.showSuccess('Đã cập nhật vị trí thành công!');
         } catch (error) {
             this.hideLoading();
             this.showError(error.message);
@@ -344,13 +363,66 @@ class LocationVerification {
     }
 
     /**
+     * Điền dữ liệu vào form
+     */
+    fillFormWithAddress(addressData) {
+        // Điền address_line1 (số nhà, tên đường)
+        const addressLine1Input = document.getElementById('address_line1');
+        if (addressLine1Input && addressData.address) {
+            // Lấy phần đầu của địa chỉ (số nhà, tên đường)
+            const addressParts = addressData.address.split(',');
+            if (addressParts.length > 0) {
+                addressLine1Input.value = addressParts[0].trim();
+            }
+        }
+
+        // Điền address (thông tin bổ sung)
+        const addressInput = document.getElementById('address');
+        if (addressInput && addressData.address) {
+            // Lấy phần còn lại của địa chỉ (nếu có)
+            const addressParts = addressData.address.split(',');
+            if (addressParts.length > 1) {
+                addressInput.value = addressParts.slice(1, -2).join(',').trim();
+            }
+        }
+
+        // Điền ward (phường/xã)
+        const wardInput = document.getElementById('ward');
+        if (wardInput && addressData.ward) {
+            wardInput.value = addressData.ward;
+        }
+
+        // Điền district (quận/huyện)
+        const districtInput = document.getElementById('district');
+        if (districtInput && addressData.district) {
+            districtInput.value = addressData.district;
+        }
+
+        // Điền city (thành phố/tỉnh)
+        const cityInput = document.getElementById('city');
+        if (cityInput && addressData.city) {
+            cityInput.value = addressData.city;
+        }
+
+        // Scroll đến form để người dùng thấy
+        const form = document.querySelector('form');
+        if (form) {
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    /**
      * Trích xuất thành phố từ địa chỉ
      */
     extractCity(address) {
-        // Logic đơn giản để trích xuất thành phố
+        if (!address) return '';
         const parts = address.split(',');
         if (parts.length > 0) {
-            return parts[parts.length - 1].trim();
+            // Thành phố thường là phần cuối cùng
+            let city = parts[parts.length - 1].trim();
+            // Loại bỏ mã bưu chính nếu có
+            city = city.replace(/\d{5,6}/g, '').trim();
+            return city;
         }
         return '';
     }
@@ -359,9 +431,24 @@ class LocationVerification {
      * Trích xuất quận/huyện từ địa chỉ
      */
     extractDistrict(address) {
+        if (!address) return '';
         const parts = address.split(',');
         if (parts.length > 1) {
+            // Quận/huyện thường là phần thứ 2 từ cuối
             return parts[parts.length - 2].trim();
+        }
+        return '';
+    }
+
+    /**
+     * Trích xuất phường/xã từ địa chỉ
+     */
+    extractWard(address) {
+        if (!address) return '';
+        const parts = address.split(',');
+        if (parts.length > 2) {
+            // Phường/xã thường là phần thứ 3 từ cuối
+            return parts[parts.length - 3].trim();
         }
         return '';
     }
@@ -400,24 +487,29 @@ class LocationVerification {
      * Hiển thị thông báo lỗi
      */
     showError(message) {
-        this.showNotification(message, 'error');
+        // Sử dụng notification system từ bookstore
+        if (typeof window.showError === 'function') {
+            window.showError('Lỗi', message);
+        } else if (typeof window.showNotification === 'function') {
+            window.showNotification('error', 'Lỗi', message);
+        } else {
+            alert('Lỗi: ' + message);
+        }
     }
 
     /**
      * Hiển thị thông báo thành công
      */
     showSuccess(message) {
-        this.showNotification(message, 'success');
+        // Sử dụng notification system từ bookstore
+        if (typeof window.showSuccess === 'function') {
+            window.showSuccess('Thành công', message);
+        } else if (typeof window.showNotification === 'function') {
+            window.showNotification('success', 'Thành công', message);
+        } else {
+            alert('Thành công: ' + message);
+        }
     }
-
-    /**
-     * Hiển thị thông báo
-     */
-    showNotification(message, type = 'info') {
-        const notification = document.createElement('div');
-        notification.className = `location-notification location-notification-${type}`;
-        notification.innerHTML = `
-            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
             <span>${message}</span>
         `;
         document.body.appendChild(notification);

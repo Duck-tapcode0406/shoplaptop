@@ -1318,6 +1318,155 @@ footer a:hover {
   box-shadow: var(--shadow-xs);
 }
 
+/* ============================================
+   NOTIFICATION TOAST COMPONENT (tương tự Bookstore)
+   ============================================ */
+
+/* Notification Container */
+.notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 400px;
+}
+
+/* Notification Item */
+.notification {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: slideInRight 0.3s ease-out;
+    min-width: 300px;
+    border-left: 4px solid;
+}
+
+/* Notification Types */
+.notification.success {
+    border-left-color: var(--success);
+}
+
+.notification.success .notification-icon {
+    color: var(--success);
+}
+
+.notification.error {
+    border-left-color: var(--error);
+}
+
+.notification.error .notification-icon {
+    color: var(--error);
+}
+
+.notification.info {
+    border-left-color: var(--info);
+}
+
+.notification.info .notification-icon {
+    color: var(--info);
+}
+
+.notification.warning {
+    border-left-color: var(--warning);
+}
+
+.notification.warning .notification-icon {
+    color: var(--warning);
+}
+
+/* Notification Icon */
+.notification-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+/* Notification Content */
+.notification-content {
+    flex: 1;
+}
+
+.notification-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+}
+
+.notification-message {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* Notification Close Button */
+.notification-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-light);
+    font-size: 18px;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: color 0.2s;
+}
+
+.notification-close:hover {
+    color: var(--text-primary);
+}
+
+/* Animation */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.notification.fade-out {
+    animation: fadeOut 0.3s ease-out forwards;
+}
+
+@keyframes fadeOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* Mobile Responsive */
+@media (max-width: 600px) {
+    .notification-container {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+
+    .notification {
+        min-width: auto;
+    }
+}
+
 .filters-grid-form .btn:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-sm);

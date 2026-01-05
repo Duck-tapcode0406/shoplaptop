@@ -42,6 +42,10 @@ define('LOGIN_ATTEMPT_WINDOW', intval(env_or_default('SHOP_LOGIN_ATTEMPT_WINDOW'
 
 // Timezone
 date_default_timezone_set(env_or_default('SHOP_TIMEZONE', 'Asia/Ho_Chi_Minh'));
+
+// Google Maps API Key - Lấy từ environment hoặc set trực tiếp
+// Lấy từ: https://console.cloud.google.com/google/maps-apis
+define('GOOGLE_MAPS_API_KEY', env_or_default('GOOGLE_MAPS_API_KEY', 'AIzaSyDudYN9Q-ziQa_v8g5zD1_aW6z91dpGcOw'));
 ?>
 
 

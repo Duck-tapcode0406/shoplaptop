@@ -10,14 +10,17 @@ if (isset($_SESSION['user_id'])) {
                    FROM `order` o 
                    JOIN `order_details` od ON o.id = od.order_id 
                    WHERE o.customer_id = ? AND od.status = 'pending'";
-    $stmt = $conn->prepare($cart_query);
-    if ($stmt) {
-        $stmt->bind_param('i', $user_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($row = $result->fetch_assoc()) {
+    $cart_stmt = $conn->prepare($cart_query);
+    if ($cart_stmt) {
+        $cart_stmt->bind_param('i', $user_id);
+        $cart_stmt->execute();
+        $cart_result = $cart_stmt->get_result();
+        if ($row = $cart_result->fetch_assoc()) {
             $cart_count = $row['total'] ?: 0;
         }
+        // Giải phóng tài nguyên
+        $cart_result->free();
+        $cart_stmt->close();
     }
 }
 
@@ -46,17 +49,19 @@ $current_location = isset($_SESSION['user_location']) ? $_SESSION['user_location
     <meta name="description" content="Modern E-Commerce Shop">
     <title>ModernShop - Cửa Hàng Trực Tuyến Hiện Đại</title>
     
-    <!-- CSS Links -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/shop/css/main.css">
-    <link rel="stylesheet" href="/shop/css/header.css">
-    <?php
-        $currentPage = basename($_SERVER['PHP_SELF']);
-        if (in_array($currentPage, ['checkout.php','addresses.php'])) :
-    ?>
-    <!-- Location verification only on checkout / addresses pages -->
-    <script src="/shop/js/location-verification.js"></script>
-    <?php endif; ?>
+           <!-- CSS Links -->
+           <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+           <link rel="stylesheet" href="/shop/css/main.css">
+           <link rel="stylesheet" href="/shop/css/header.css">
+           <!-- Notification System (tương tự Bookstore) -->
+           <script src="/shop/js/notification.js"></script>
+           <?php
+               $currentPage = basename($_SERVER['PHP_SELF']);
+               if (in_array($currentPage, ['checkout.php','addresses.php'])) :
+           ?>
+           <!-- Location verification only on checkout / addresses pages -->
+           <script src="/shop/js/location-verification.js"></script>
+           <?php endif; ?>
 </head>
 <body>
     <!-- Top Information Bar -->

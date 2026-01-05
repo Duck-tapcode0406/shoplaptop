@@ -13,7 +13,7 @@ requireLogin();
 $user_id = $_SESSION['user_id'];
 
 // Get user data using prepared statement
-$stmt = $conn->prepare("SELECT username, familyname, firstname, email, phone, password FROM user WHERE id = ?");
+$stmt = $conn->prepare("SELECT username, familyname, firstname, email, phone, password, avatar FROM user WHERE id = ?");
 $stmt->bind_param('i', $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -280,18 +280,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </a>
                     </li>
                     <li>
-                        <a href="#">
+                        <a href="wishlist.php">
                             <i class="fas fa-heart"></i> Danh Sách Yêu Thích
                         </a>
                     </li>
                     <li>
-                        <a href="#">
+                        <a href="addresses.php">
                             <i class="fas fa-map-marker-alt"></i> Địa Chỉ
-                        </a>
-                    </li>
-                    <li>
-                        <a href="#">
-                            <i class="fas fa-cog"></i> Cài Đặt
                         </a>
                     </li>
                     <li>
@@ -312,10 +307,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
 
                 <?php if (!empty($message)): ?>
-                    <div class="alert alert-<?php echo $message_type === 'success' ? 'success' : 'error'; ?>">
-                        <i class="fas fa-<?php echo $message_type === 'success' ? 'check-circle' : 'exclamation-circle'; ?>"></i>
-                        <span><?php echo htmlspecialchars($message); ?></span>
-                    </div>
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            showNotification('<?php echo $message_type; ?>', 
+                                '<?php echo $message_type === 'success' ? 'Thành công' : 'Lỗi'; ?>', 
+                                '<?php echo addslashes($message); ?>', 
+                                5000);
+                        });
+                    </script>
                 <?php endif; ?>
 
                 <form method="POST" action="user.php">
@@ -381,6 +380,192 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </a>
                     </div>
                 </form>
+
+                <!-- Thay Đổi Ảnh Đại Diện -->
+                <hr style="margin: var(--space-3xl) 0; border: none; border-top: 2px solid var(--border-color);">
+                
+                <div class="content-header">
+                    <h2>
+                        <i class="fas fa-user-circle"></i>
+                        Thay Đổi Ảnh Đại Diện
+                    </h2>
+                </div>
+
+                <div class="avatar-upload-section">
+                    <div class="avatar-preview-container">
+                        <div class="avatar-preview">
+                            <?php 
+                            $avatar_path = !empty($user['avatar']) ? 'uploads/avatars/' . htmlspecialchars($user['avatar']) : 'images/avatar-default.png';
+                            ?>
+                            <img id="avatar-preview-img" src="<?php echo $avatar_path; ?>" alt="Ảnh đại diện" onerror="this.onerror=null; this.src='images/avatar-default.png';">
+                            <div class="avatar-overlay">
+                                <i class="fas fa-camera"></i>
+                                <span>Thay đổi ảnh</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form id="avatar-upload-form" enctype="multipart/form-data" style="margin-top: var(--space-lg);">
+                        <div class="form-group">
+                            <label for="avatar-input" class="btn btn-secondary" style="cursor: pointer; display: inline-flex; align-items: center; gap: var(--space-sm);">
+                                <i class="fas fa-upload"></i> Chọn Ảnh
+                            </label>
+                            <input type="file" id="avatar-input" name="avatar" accept="image/*" style="display: none;" onchange="previewAvatar(this)">
+                            <button type="button" id="upload-avatar-btn" class="btn btn-primary" style="display: none; margin-left: var(--space-sm);">
+                                <i class="fas fa-save"></i> Lưu Ảnh
+                            </button>
+                            <button type="button" id="cancel-avatar-btn" class="btn btn-secondary" style="display: none; margin-left: var(--space-sm);" onclick="cancelAvatarUpload()">
+                                <i class="fas fa-times"></i> Hủy
+                            </button>
+                        </div>
+                        <small style="color: var(--text-secondary); font-size: var(--fs-small); display: block; margin-top: var(--space-sm);">
+                            <i class="fas fa-info-circle"></i> Định dạng: JPG, PNG, GIF. Kích thước tối đa: 5MB
+                        </small>
+                    </form>
+                </div>
+
+                <style>
+                    .avatar-upload-section {
+                        max-width: 500px;
+                    }
+
+                    .avatar-preview-container {
+                        display: flex;
+                        justify-content: center;
+                        margin-bottom: var(--space-lg);
+                    }
+
+                    .avatar-preview {
+                        position: relative;
+                        width: 150px;
+                        height: 150px;
+                        border-radius: 50%;
+                        overflow: hidden;
+                        border: 4px solid var(--border-color);
+                        cursor: pointer;
+                        transition: all 0.3s;
+                    }
+
+                    .avatar-preview:hover {
+                        border-color: var(--primary);
+                        transform: scale(1.05);
+                    }
+
+                    .avatar-preview img {
+                        width: 100%;
+                        height: 100%;
+                        object-fit: cover;
+                    }
+
+                    .avatar-overlay {
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(0, 0, 0, 0.6);
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        opacity: 0;
+                        transition: opacity 0.3s;
+                        color: white;
+                    }
+
+                    .avatar-preview:hover .avatar-overlay {
+                        opacity: 1;
+                    }
+
+                    .avatar-overlay i {
+                        font-size: 2rem;
+                        margin-bottom: var(--space-xs);
+                    }
+
+                    .avatar-overlay span {
+                        font-size: var(--fs-small);
+                        font-weight: var(--fw-semibold);
+                    }
+                </style>
+
+                <script>
+                    // Preview avatar khi chọn file
+                    function previewAvatar(input) {
+                        if (input.files && input.files[0]) {
+                            const reader = new FileReader();
+                            reader.onload = function(e) {
+                                document.getElementById('avatar-preview-img').src = e.target.result;
+                                document.getElementById('upload-avatar-btn').style.display = 'inline-flex';
+                                document.getElementById('cancel-avatar-btn').style.display = 'inline-flex';
+                            };
+                            reader.readAsDataURL(input.files[0]);
+                        }
+                    }
+
+                    // Hủy upload avatar
+                    function cancelAvatarUpload() {
+                        document.getElementById('avatar-input').value = '';
+                        document.getElementById('upload-avatar-btn').style.display = 'none';
+                        document.getElementById('cancel-avatar-btn').style.display = 'none';
+                        // Khôi phục ảnh cũ
+                        const oldAvatar = '<?php echo !empty($user['avatar']) ? "uploads/avatars/" . htmlspecialchars($user['avatar']) : "images/avatar-default.png"; ?>';
+                        document.getElementById('avatar-preview-img').src = oldAvatar;
+                    }
+
+                    // Upload avatar
+                    document.getElementById('upload-avatar-btn')?.addEventListener('click', function() {
+                        const fileInput = document.getElementById('avatar-input');
+                        if (!fileInput.files || !fileInput.files[0]) {
+                            showWarning('Cảnh báo', 'Vui lòng chọn ảnh trước khi upload');
+                            return;
+                        }
+
+                        const formData = new FormData();
+                        formData.append('avatar', fileInput.files[0]);
+                        formData.append('action', 'upload_avatar');
+
+                        // Hiển thị loading
+                        const btn = this;
+                        const originalText = btn.innerHTML;
+                        btn.disabled = true;
+                        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang upload...';
+
+                        fetch('api/upload_avatar.php', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                            
+                            if (data.success) {
+                                showSuccess('Thành công', data.message || 'Đã cập nhật ảnh đại diện thành công!');
+                                // Cập nhật ảnh preview
+                                if (data.imageUrl) {
+                                    document.getElementById('avatar-preview-img').src = data.imageUrl;
+                                }
+                                // Ẩn nút upload và cancel
+                                document.getElementById('upload-avatar-btn').style.display = 'none';
+                                document.getElementById('cancel-avatar-btn').style.display = 'none';
+                                fileInput.value = '';
+                            } else {
+                                showError('Lỗi', data.message || 'Không thể upload ảnh đại diện');
+                            }
+                        })
+                        .catch(error => {
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                            console.error('Error:', error);
+                            showError('Lỗi', 'Đã xảy ra lỗi khi upload ảnh');
+                        });
+                    });
+
+                    // Click vào avatar preview để chọn file
+                    document.querySelector('.avatar-preview')?.addEventListener('click', function() {
+                        document.getElementById('avatar-input').click();
+                    });
+                </script>
 
                 <!-- Sản phẩm đã mua -->
                 <hr style="margin: var(--space-3xl) 0; border: none; border-top: 2px solid var(--border-color);">

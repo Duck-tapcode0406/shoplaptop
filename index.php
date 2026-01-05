@@ -271,6 +271,41 @@ $result = $stmt->get_result();
             color: var(--text-secondary);
             font-size: var(--fs-small);
         }
+
+        /* Product Card Styles */
+        .product-card {
+            position: relative;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .product-clickable-area {
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+        }
+
+        .product-clickable-area:hover {
+            opacity: 0.9;
+        }
+
+        .product-actions-hover {
+            display: none;
+            padding: 10px 0;
+            margin-top: 10px;
+        }
+
+        .product-card:hover .product-actions-hover {
+            display: block;
+        }
+
+        .product-actions-hover .btn {
+            width: 100%;
+            justify-content: center;
+        }
     </style>
 </head>
 <body>
@@ -393,75 +428,64 @@ $result = $stmt->get_result();
                     }
                     ?>
                     <div class="product-card">
-                        <!-- Product Image -->
-                        <div class="product-image-wrapper">
-                            <?php
-                            // Xử lý path giống shopdemo - đơn giản và trực tiếp
-                            $imagePath = !empty($row['path']) ? 'admin/' . htmlspecialchars($row['path']) : 'images/no-image.png';
-                            ?>
-                            <img src="<?php echo $imagePath; ?>" alt="<?php echo htmlspecialchars($row['name']); ?>" class="product-image" style="width:100%;height:220px;object-fit:cover;border-radius:8px;background:#f3f3f3;" onerror="this.onerror=null; this.src='images/no-image.png';">
-                            
-                            <!-- Sale Badge -->
-                            <?php if ($is_on_sale): ?>
-                                <span class="product-badge sale">-<?php echo $discount_percent; ?>%</span>
-                            <?php else: ?>
-                                <span class="product-badge new">Mới</span>
-                            <?php endif; ?>
-
-                            <!-- Wishlist Button -->
-                            <button class="product-wishlist" onclick="toggleWishlist(this)">
-                                <i class="far fa-heart"></i>
-                            </button>
-                        </div>
-
-                        <!-- Product Info -->
-                        <div class="product-info">
-                            <h3 class="product-name"><?php echo htmlspecialchars($row['name']); ?></h3>
-
-                            <!-- Rating -->
-                            <div class="product-rating">
-                                <div class="stars">
-                                    <i class="fas fa-star"></i>
-                                    <i class="fas fa-star"></i>
-                                    <i class="fas fa-star"></i>
-                                    <i class="fas fa-star"></i>
-                                    <i class="far fa-star"></i>
-                                </div>
-                                <span class="count">(120 reviews)</span>
-                            </div>
-
-                            <!-- Price -->
-                            <div class="product-price">
+                        <a href="product_detail.php?id=<?php echo $row['id']; ?>" class="product-clickable-area" style="text-decoration: none; color: inherit; display: block;">
+                            <!-- Product Image -->
+                            <div class="product-image-wrapper">
+                                <?php
+                                // Xử lý path giống shopdemo - đơn giản và trực tiếp
+                                $imagePath = !empty($row['path']) ? 'admin/' . htmlspecialchars($row['path']) : 'images/no-image.png';
+                                ?>
+                                <img src="<?php echo $imagePath; ?>" alt="<?php echo htmlspecialchars($row['name']); ?>" class="product-image" style="width:100%;height:220px;object-fit:cover;border-radius:8px;background:#f3f3f3;" onerror="this.onerror=null; this.src='images/no-image.png';">
+                                
+                                <!-- Sale Badge -->
                                 <?php if ($is_on_sale): ?>
-                                    <span class="product-price-original"><?php echo number_format($original_price, 0, ',', '.'); ?> ₫</span>
-                                    <span class="product-price-current"><?php echo number_format($price, 0, ',', '.'); ?> ₫</span>
+                                    <span class="product-badge sale">-<?php echo $discount_percent; ?>%</span>
                                 <?php else: ?>
-                                    <span class="product-price-current"><?php echo number_format($price, 0, ',', '.'); ?> ₫</span>
+                                    <span class="product-badge new">Mới</span>
                                 <?php endif; ?>
+
+                                <!-- Wishlist Button -->
+                                <button type="button" class="product-wishlist" onclick="event.preventDefault(); event.stopPropagation(); toggleWishlist(this)">
+                                    <i class="far fa-heart"></i>
+                                </button>
                             </div>
 
-                            <!-- Actions - Default (visible) -->
-                            <div class="product-actions" style="position: relative; transform: none; opacity: 1;">
-                                <form method="POST" action="add_to_cart.php" style="width: 100%;">
-                                    <input type="hidden" name="product_id" value="<?php echo $row['id']; ?>">
-                                    <button type="submit" class="btn btn-primary" style="width: 100%;">
-                                        <i class="fas fa-shopping-cart"></i> Thêm
-                                    </button>
-                                </form>
-                                <a href="product_detail.php?id=<?php echo $row['id']; ?>" class="btn btn-secondary" style="width: 100%;">
-                                    <i class="fas fa-eye"></i> Xem
-                                </a>
+                            <!-- Product Info -->
+                            <div class="product-info">
+                                <h3 class="product-name"><?php echo htmlspecialchars($row['name']); ?></h3>
+
+                                <!-- Rating -->
+                                <div class="product-rating">
+                                    <div class="stars">
+                                        <i class="fas fa-star"></i>
+                                        <i class="fas fa-star"></i>
+                                        <i class="fas fa-star"></i>
+                                        <i class="fas fa-star"></i>
+                                        <i class="far fa-star"></i>
+                                    </div>
+                                    <span class="count">(120 reviews)</span>
+                                </div>
+
+                                <!-- Price -->
+                                <div class="product-price">
+                                    <?php if ($is_on_sale): ?>
+                                        <span class="product-price-original"><?php echo number_format($original_price, 0, ',', '.'); ?> ₫</span>
+                                        <span class="product-price-current"><?php echo number_format($price, 0, ',', '.'); ?> ₫</span>
+                                    <?php else: ?>
+                                        <span class="product-price-current"><?php echo number_format($price, 0, ',', '.'); ?> ₫</span>
+                                    <?php endif; ?>
+                                </div>
                             </div>
-                            
-                            <!-- Actions - Hover (slide up) -->
-                            <div class="product-actions product-actions-hover">
-                                <form method="POST" action="add_to_cart.php" style="width: 100%;">
-                                    <input type="hidden" name="product_id" value="<?php echo $row['id']; ?>">
-                                    <button type="submit" class="btn btn-primary" style="width: 100%; padding: 14px;">
-                                        <i class="fas fa-shopping-cart"></i> Thêm Vào Giỏ Hàng
-                                    </button>
-                                </form>
-                            </div>
+                        </a>
+                        
+                        <!-- Actions - Hover (hiển thị khi hover) -->
+                        <div class="product-actions-hover">
+                            <form method="POST" action="add_to_cart.php" style="display: flex; gap: 10px; width: 100%;" onclick="event.stopPropagation();">
+                                <input type="hidden" name="product_id" value="<?php echo $row['id']; ?>">
+                                <button type="submit" class="btn btn-primary" style="flex: 1; padding: 12px;">
+                                    <i class="fas fa-shopping-cart"></i> Thêm Vào Giỏ Hàng
+                                </button>
+                            </form>
                         </div>
                     </div>
                 <?php endwhile; ?>
