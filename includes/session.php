@@ -7,7 +7,7 @@ require_once __DIR__ . '/config.php';
 
 // Session security settings
 ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
+ini_set('session.cookie_secure', (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === "on") ? 1 : 0);
 ini_set('session.use_strict_mode', 1);
 ini_set('session.gc_maxlifetime', SESSION_TIMEOUT);
 ini_set('session.cookie_samesite', 'Strict');
@@ -57,6 +57,7 @@ function destroySession() {
     exit();
 }
 ?>
+
 
 
 

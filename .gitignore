@@ -3,6 +3,8 @@ api/config.php
 
 # Database credentials (nếu có file riêng)
 includes/db_config.php
+includes/config.php
+.env
 
 # Logs
 *.log
@@ -16,6 +18,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
 
 
 

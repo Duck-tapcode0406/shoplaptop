@@ -432,6 +432,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <div class="split-right">
             <div class="auth-container">
                 <div class="auth-card">
+            <!-- Back to Home Button -->
+            <div style="margin-bottom: 20px;">
+                <a href="index.php" style="display: inline-flex; align-items: center; gap: 8px; color: var(--primary, #4169E1); text-decoration: none; font-size: 14px; transition: color 0.3s;" onmouseover="this.style.color='#1E90FF'" onmouseout="this.style.color='var(--primary, #4169E1)'">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Quay lại trang chủ</span>
+                </a>
+            </div>
+            
             <!-- Header -->
             <div class="auth-header">
                 <div class="auth-logo">

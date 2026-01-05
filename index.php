@@ -310,13 +310,30 @@ $result = $stmt->get_result();
                     <div>
                         <div class="filter-group">
                             <label for="min_price"><i class="fas fa-dollar-sign" style="margin-right: 8px;"></i>Giá tối thiểu</label>
-                            <input type="number" name="min_price" id="min_price" placeholder="0" value="<?php echo isset($_GET['min_price']) && $_GET['min_price'] !== '' ? htmlspecialchars($_GET['min_price']) : ''; ?>" min="0">
+                            <select name="min_price" id="min_price" class="filter-group input" style="width: 100%; padding: var(--space-sm) var(--space-md); border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: var(--fs-body);">
+                                <option value="">Chọn giá tối thiểu</option>
+                                <option value="0" <?php echo (isset($_GET['min_price']) && $_GET['min_price'] == '0') ? 'selected' : ''; ?>>0</option>
+                                <option value="5000000" <?php echo (isset($_GET['min_price']) && $_GET['min_price'] == '5000000') ? 'selected' : ''; ?>>5 triệu</option>
+                                <option value="10000000" <?php echo (isset($_GET['min_price']) && $_GET['min_price'] == '10000000') ? 'selected' : ''; ?>>10 triệu</option>
+                                <option value="15000000" <?php echo (isset($_GET['min_price']) && $_GET['min_price'] == '15000000') ? 'selected' : ''; ?>>15 triệu</option>
+                                <option value="20000000" <?php echo (isset($_GET['min_price']) && $_GET['min_price'] == '20000000') ? 'selected' : ''; ?>>20 triệu</option>
+                                <option value="50000000" <?php echo (isset($_GET['min_price']) && $_GET['min_price'] == '50000000') ? 'selected' : ''; ?>>50 triệu</option>
+                            </select>
                         </div>
                     </div>
                     <div>
                         <div class="filter-group">
                             <label for="max_price"><i class="fas fa-dollar-sign" style="margin-right: 8px;"></i>Giá tối đa</label>
-                            <input type="number" name="max_price" id="max_price" placeholder="Không giới hạn" value="<?php echo isset($_GET['max_price']) && $_GET['max_price'] !== '' && $_GET['max_price'] !== '999999999' ? htmlspecialchars($_GET['max_price']) : ''; ?>" min="0">
+                            <select name="max_price" id="max_price" class="filter-group input" style="width: 100%; padding: var(--space-sm) var(--space-md); border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: var(--fs-body);">
+                                <option value="">Chọn giá tối đa</option>
+                                <option value="5000000" <?php echo (isset($_GET['max_price']) && $_GET['max_price'] == '5000000') ? 'selected' : ''; ?>>5 triệu</option>
+                                <option value="10000000" <?php echo (isset($_GET['max_price']) && $_GET['max_price'] == '10000000') ? 'selected' : ''; ?>>10 triệu</option>
+                                <option value="15000000" <?php echo (isset($_GET['max_price']) && $_GET['max_price'] == '15000000') ? 'selected' : ''; ?>>15 triệu</option>
+                                <option value="30000000" <?php echo (isset($_GET['max_price']) && $_GET['max_price'] == '30000000') ? 'selected' : ''; ?>>30 triệu</option>
+                                <option value="50000000" <?php echo (isset($_GET['max_price']) && $_GET['max_price'] == '50000000') ? 'selected' : ''; ?>>50 triệu</option>
+                                <option value="100000000" <?php echo (isset($_GET['max_price']) && $_GET['max_price'] == '100000000') ? 'selected' : ''; ?>>100 triệu</option>
+                                <option value="999999999" <?php echo (isset($_GET['max_price']) && $_GET['max_price'] == '999999999') ? 'selected' : ''; ?>>Không giới hạn</option>
+                            </select>
                         </div>
                     </div>
                     <div style="display:flex;gap:12px;justify-content:flex-end;">
@@ -351,39 +368,38 @@ $result = $stmt->get_result();
             <div class="grid grid-4" style="margin-bottom: var(--space-5xl);">
                 <?php while ($row = $result->fetch_assoc()): ?>
                     <?php
-                    $current_time = $_SESSION['current_time'];
+                    // Sử dụng thời gian hiện tại thực tế thay vì session time
+                    $current_time = date('Y-m-d H:i:s');
                     $discount_start = $row['discount_start'];
                     $discount_end = $row['discount_end'];
 
-                    if ($current_time >= $discount_start && $current_time <= $discount_end) {
-                        $price = $row['temporary_price'];
-                        $original_price = $row['price'];
-                        $is_on_sale = true;
-                        $discount_percent = round((($original_price - $price) / $original_price) * 100);
-                    } else {
-                        $price = $row['price'];
-                        $original_price = null;
-                        $is_on_sale = false;
+                    // Kiểm tra khuyến mãi với xử lý NULL an toàn
+                    $is_on_sale = false;
+                    $price = !empty($row['price']) ? $row['price'] : 0;
+                    $original_price = null;
+                    $discount_percent = 0;
+                    
+                    // Chỉ kiểm tra khuyến mãi nếu có đầy đủ thông tin
+                    if (!empty($row['discount_start']) && !empty($row['discount_end']) && 
+                        !empty($row['temporary_price']) && !empty($row['price'])) {
+                        if ($current_time >= $row['discount_start'] && $current_time <= $row['discount_end']) {
+                            $price = $row['temporary_price'];
+                            $original_price = $row['price'];
+                            $is_on_sale = true;
+                            if ($original_price > 0) {
+                                $discount_percent = round((($original_price - $price) / $original_price) * 100);
+                            }
+                        }
                     }
                     ?>
                     <div class="product-card">
                         <!-- Product Image -->
                         <div class="product-image-wrapper">
                             <?php
-                            $rawPath = isset($row['path']) ? trim($row['path']) : '';
-                            $cleanPath = ltrim($rawPath, "/\\");
-                            if (strpos($cleanPath, 'admin/') === 0) {
-                                $cleanPath = substr($cleanPath, 6);
-                            }
-                            if (strpos($cleanPath, 'uploads/') === 0) {
-                                $imagePath = $cleanPath;
-                            } elseif (!empty($cleanPath)) {
-                                $imagePath = 'uploads/' . $cleanPath;
-                            } else {
-                                $imagePath = 'images/no-image.png';
-                            }
+                            // Xử lý path giống shopdemo - đơn giản và trực tiếp
+                            $imagePath = !empty($row['path']) ? 'admin/' . htmlspecialchars($row['path']) : 'images/no-image.png';
                             ?>
-                            <img src="<?php echo htmlspecialchars($imagePath); ?>" alt="<?php echo htmlspecialchars($row['name']); ?>" class="product-image" style="width:100%;height:220px;object-fit:cover;border-radius:8px;background:#f3f3f3;">
+                            <img src="<?php echo $imagePath; ?>" alt="<?php echo htmlspecialchars($row['name']); ?>" class="product-image" style="width:100%;height:220px;object-fit:cover;border-radius:8px;background:#f3f3f3;" onerror="this.onerror=null; this.src='images/no-image.png';">
                             
                             <!-- Sale Badge -->
                             <?php if ($is_on_sale): ?>

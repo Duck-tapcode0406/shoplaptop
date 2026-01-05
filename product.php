@@ -67,8 +67,9 @@ $total = $count_result->fetch_assoc()['total'];
 $total_pages = ceil($total / $per_page);
 
 // Fetch products using prepared statement
-$query = "SELECT p.id, p.name, p.price, p.image, p.rating 
+$query = "SELECT p.id, p.name, p.price, p.rating, img.path
           FROM product p 
+          LEFT JOIN image img ON p.id = img.product_id AND img.sort_order = 1
           $where 
           $order 
           LIMIT ?, ?";
@@ -355,11 +356,20 @@ $result = $stmt->get_result();
                 <?php while ($product = $result->fetch_assoc()): ?>
                     <div class="product-card">
                         <div class="product-image">
-                            <?php if (!empty($product['image'])): ?>
-                                <img src="<?php echo htmlspecialchars($product['image']); ?>" alt="<?php echo htmlspecialchars($product['name']); ?>">
-                            <?php else: ?>
-                                <div style="font-size: 3rem; color: var(--text-light);"><i class="fas fa-image"></i></div>
-                            <?php endif; ?>
+                            <?php 
+                            $rawPath = isset($product['path']) ? trim($product['path']) : '';
+                            
+                            if (!empty($rawPath)) {
+                                if (strpos($rawPath, 'uploads/') === 0) {
+                                    $imagePath = 'admin/' . $rawPath;
+                                } else {
+                                    $imagePath = 'admin/uploads/' . $rawPath;
+                                }
+                            } else {
+                                $imagePath = 'images/no-image.png';
+                            }
+                            ?>
+                            <img src="<?php echo htmlspecialchars($imagePath); ?>" alt="<?php echo htmlspecialchars($product['name']); ?>" onerror="this.onerror=null; this.src='images/no-image.png';">
                             <div class="product-badge">MỚI</div>
                         </div>
 

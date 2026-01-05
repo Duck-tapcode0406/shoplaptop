@@ -1,0 +1,66 @@
+/* Cấu trúc chung */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f9f9f9;
+    margin: 0;
+    padding: 0;
+}
+
+h2 {
+    text-align: center;
+    color: #333;
+    margin-top: 20px;
+}
+
+a {
+    text-decoration: none;
+    color: #4CAF50;
+    display: block;
+    text-align: center;
+    margin-top: 20px;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Bảng danh sách đơn hàng */
+table {
+    width: 90%;
+    margin: 20px auto;
+    border-collapse: collapse;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+th, td {
+    padding: 12px;
+    text-align: left;
+    border: 1px solid #ddd;
+}
+
+th {
+    background-color: #4CAF50;
+    color: white;
+}
+
+tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+tr:hover {
+    background-color: #f1f1f1;
+}
+
+/* Cột "ID Đơn hàng", "Tên khách hàng", "Ngày đặt hàng" */
+td[rowspan] {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+
+/* Cải thiện hiển thị số tiền */
+td:last-child {
+    color: #d32f2f;
+    font-weight: bold;
+}
