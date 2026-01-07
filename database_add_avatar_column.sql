@@ -6,3 +6,5 @@ ADD COLUMN IF NOT EXISTS `avatar` VARCHAR(255) DEFAULT NULL AFTER `email`;
 
 -- Tạo thư mục uploads/avatars nếu chưa có (thực hiện thủ công hoặc qua code)
 
+
+

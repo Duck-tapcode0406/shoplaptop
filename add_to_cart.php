@@ -1,5 +1,7 @@
 <?php
-// Load required files
+// add_to_cart.php
+// Sửa: dùng getDB(), transaction, sửa bind_param types, kiểm tra stock, CSRF, require login
+
 require_once 'includes/session.php';
 require_once 'includes/db.php';
 require_once 'includes/csrf.php';
@@ -7,180 +9,167 @@ require_once 'includes/helpers.php';
 require_once 'includes/validator.php';
 require_once 'includes/error_handler.php';
 
-// Require login
-requireLogin();
+requireLogin(); // Yêu cầu đăng nhập
 
-// Validate CSRF
+// Validate CSRF token
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validateCSRFPost();
+} else {
+    handleError("Phương thức không hợp lệ.", 405);
 }
 
-// Kiểm tra nếu có ID sản phẩm được gửi đến
-if (isset($_POST['product_id'])) {
-    // Validate product ID
-    $product_validation = Validator::productId($_POST['product_id']);
-    if (!$product_validation['valid']) {
-        handleError($product_validation['message'], 400);
+$conn = getDB();
+
+try {
+    // Validate product_id
+    $productValidation = Validator::productId($_POST['product_id'] ?? 0);
+    if (!$productValidation['valid']) {
+        handleError($productValidation['message'], 400);
     }
-    $product_id = $product_validation['value'];
-    
+    $product_id = $productValidation['value'];
+
+    // Quantity
     $quantity = isset($_POST['quantity']) ? intval($_POST['quantity']) : 1;
-    if ($quantity < 1) {
-        $quantity = 1;
-    }
-    
-    // Sanitize color_name và configuration_name
-    $color_name = isset($_POST['color_name']) && !empty($_POST['color_name']) 
-        ? Validator::sanitize($_POST['color_name']) 
-        : null;
-    $configuration_name = isset($_POST['configuration_name']) && !empty($_POST['configuration_name']) 
-        ? Validator::sanitize($_POST['configuration_name']) 
-        : null;
-    
-    // Nếu có configuration dạng "color - config", tách ra
-    if (isset($_POST['configuration']) && !empty($_POST['configuration'])) {
-        $configuration = explode(' - ', $_POST['configuration']);
-        $color_name = !empty($configuration[0]) ? Validator::sanitize($configuration[0]) : null;
-        $configuration_name = !empty($configuration[1]) ? Validator::sanitize($configuration[1]) : null;
+    if ($quantity < 1) $quantity = 1;
+
+    // Parse configuration (format: "color - configuration")
+    $color_name = null;
+    $configuration_name = null;
+    if (isset($_POST['configuration']) && trim($_POST['configuration']) !== '') {
+        $parts = explode(' - ', $_POST['configuration'], 2);
+        $color_name = isset($parts[0]) ? Validator::sanitize($parts[0]) : null;
+        $configuration_name = isset($parts[1]) ? Validator::sanitize($parts[1]) : null;
+    } else {
+        // allow explicit separate fields too
+        if (!empty($_POST['color_name'])) $color_name = Validator::sanitize($_POST['color_name']);
+        if (!empty($_POST['configuration_name'])) $configuration_name = Validator::sanitize($_POST['configuration_name']);
     }
 
-    // Kiểm tra nếu khách hàng đã có đơn hàng đang xử lý
+    // Bắt đầu transaction
+    $conn->begin_transaction();
+
+    // Tạo order nếu chưa có
     if (!isset($_SESSION['order_id'])) {
-        // Tạo mới một đơn hàng trong bảng `order` sử dụng prepared statement
         $customer_id = $_SESSION['user_id'];
         $datetime = date('Y-m-d H:i:s');
-        
         $orderQuery = "INSERT INTO `order` (customer_id, datetime) VALUES (?, ?)";
         $stmt = $conn->prepare($orderQuery);
+        if (!$stmt) throw new Exception("Prepare lỗi tạo order: " . $conn->error);
         $stmt->bind_param('is', $customer_id, $datetime);
-        
-        if ($stmt->execute()) {
-            $_SESSION['order_id'] = $conn->insert_id; // Lưu lại ID đơn hàng vừa tạo
-        } else {
-            error_log("Error creating order: " . $conn->error);
-            handleError("Lỗi khi tạo đơn hàng. Vui lòng thử lại.", 500);
+        if (!$stmt->execute()) {
+            throw new Exception("Lỗi khi tạo đơn: " . $stmt->error);
         }
+        $_SESSION['order_id'] = $conn->insert_id;
+        $stmt->close();
     }
 
-    // Lưu thông tin chi tiết sản phẩm vào bảng `order_details`
     $order_id = $_SESSION['order_id'];
 
-    // Truy vấn để lấy giá của sản phẩm mới nhất, kiểm tra nếu có giá tạm thời (giảm giá)
-    $priceQuery = "SELECT price, temporary_price, discount_start, discount_end 
-                   FROM price 
-                   WHERE product_id = ? 
-                   ORDER BY datetime DESC 
+    // Lấy giá mới nhất (có thể có temporary_price)
+    $priceQuery = "SELECT price, temporary_price, discount_start, discount_end
+                   FROM price
+                   WHERE product_id = ?
+                   ORDER BY datetime DESC
                    LIMIT 1";
     $price_stmt = $conn->prepare($priceQuery);
+    if (!$price_stmt) throw new Exception("Prepare lỗi price: " . $conn->error);
     $price_stmt->bind_param('i', $product_id);
     $price_stmt->execute();
     $priceResult = $price_stmt->get_result();
-
-    if ($priceResult->num_rows > 0) {
-        $price_data = $priceResult->fetch_assoc();
-        $price = $price_data['price'];
-
-        // Kiểm tra nếu có giá giảm (temporary_price)
-        $current_time = date('Y-m-d H:i:s');
-        if ($current_time >= $price_data['discount_start'] && $current_time <= $price_data['discount_end']) {
-            $price = $price_data['temporary_price']; // Lấy giá tạm thời nếu đang trong thời gian giảm giá
-        }
-
-        // Kiểm tra xem sản phẩm đã có trong chi tiết đơn hàng chưa - sử dụng prepared statement
-        $detailCheckQuery = "SELECT * FROM order_details 
-                            WHERE order_id = ? 
-                            AND product_id = ? 
-                            AND status = 'pending'";
-        
-        // Build conditions for color_name and configuration_name
-        if ($color_name) {
-            $detailCheckQuery .= " AND (color_name = ? OR color_name IS NULL)";
-        } else {
-            $detailCheckQuery .= " AND color_name IS NULL";
-        }
-        
-        if ($configuration_name) {
-            $detailCheckQuery .= " AND (configuration_name = ? OR configuration_name IS NULL)";
-        } else {
-            $detailCheckQuery .= " AND configuration_name IS NULL";
-        }
-        
-        $detailCheck_stmt = $conn->prepare($detailCheckQuery);
-        
-        // Bind parameters dynamically
-        if ($color_name && $configuration_name) {
-            $detailCheck_stmt->bind_param('iiss', $order_id, $product_id, $color_name, $configuration_name);
-        } elseif ($color_name) {
-            $detailCheck_stmt->bind_param('iis', $order_id, $product_id, $color_name);
-        } elseif ($configuration_name) {
-            $detailCheck_stmt->bind_param('iis', $order_id, $product_id, $configuration_name);
-        } else {
-            $detailCheck_stmt->bind_param('ii', $order_id, $product_id);
-        }
-        
-        $detailCheck_stmt->execute();
-        $detailCheckResult = $detailCheck_stmt->get_result();
-
-        if ($detailCheckResult->num_rows > 0) {
-            // Nếu sản phẩm đã tồn tại, cập nhật số lượng - sử dụng prepared statement
-            $updateQuery = "UPDATE order_details 
-                            SET quantity = quantity + ?, 
-                                price = ? 
-                            WHERE order_id = ? 
-                            AND product_id = ? 
-                            AND status = 'pending'";
-            
-            if ($color_name) {
-                $updateQuery .= " AND (color_name = ? OR color_name IS NULL)";
-            } else {
-                $updateQuery .= " AND color_name IS NULL";
-            }
-            
-            if ($configuration_name) {
-                $updateQuery .= " AND (configuration_name = ? OR configuration_name IS NULL)";
-            } else {
-                $updateQuery .= " AND configuration_name IS NULL";
-            }
-            
-            $update_stmt = $conn->prepare($updateQuery);
-            
-            // Bind parameters dynamically
-            if ($color_name && $configuration_name) {
-                $update_stmt->bind_param('diiiss', $quantity, $price, $order_id, $product_id, $color_name, $configuration_name);
-            } elseif ($color_name) {
-                $update_stmt->bind_param('diiis', $quantity, $price, $order_id, $product_id, $color_name);
-            } elseif ($configuration_name) {
-                $update_stmt->bind_param('diiis', $quantity, $price, $order_id, $product_id, $configuration_name);
-            } else {
-                $update_stmt->bind_param('diii', $quantity, $price, $order_id, $product_id);
-            }
-            
-            $update_stmt->execute();
-            
-            if ($update_stmt->error) {
-                error_log("Error updating order details: " . $update_stmt->error);
-                handleError("Lỗi khi cập nhật giỏ hàng. Vui lòng thử lại.", 500);
-            }
-        } else {
-            // Nếu sản phẩm chưa tồn tại, thêm mới vào bảng `order_details` - sử dụng prepared statement
-            $insertQuery = "INSERT INTO order_details (order_id, product_id, quantity, price, color_name, configuration_name, status) 
-                            VALUES (?, ?, ?, ?, ?, ?, 'pending')";
-            $insert_stmt = $conn->prepare($insertQuery);
-            $insert_stmt->bind_param('iiidss', $order_id, $product_id, $quantity, $price, $color_name, $configuration_name);
-            $insert_stmt->execute();
-            
-            if ($insert_stmt->error) {
-                error_log("Error inserting order details: " . $insert_stmt->error);
-                handleError("Lỗi khi thêm sản phẩm vào giỏ hàng. Vui lòng thử lại.", 500);
-            }
-        }
-    } else {
+    if ($priceResult->num_rows === 0) {
+        // Nếu không tìm thấy giá -> rollback + lỗi
+        $price_stmt->close();
+        $conn->rollback();
         handleError("Không tìm thấy giá sản phẩm.", 404);
     }
-    
-    // Chuyển hướng về trang sản phẩm (product_detail.php)
+    $price_data = $priceResult->fetch_assoc();
+    $price_stmt->close();
+
+    $price = $price_data['price'];
+    $current_time = date('Y-m-d H:i:s');
+    if (!empty($price_data['temporary_price']) && !empty($price_data['discount_start']) && !empty($price_data['discount_end'])) {
+        if ($current_time >= $price_data['discount_start'] && $current_time <= $price_data['discount_end']) {
+            $price = $price_data['temporary_price'];
+        }
+    }
+
+    // Kiểm tra tồn kho (dựa trên receipt_details như design hiện tại)
+    $stockQuery = "SELECT COALESCE(SUM(rd.quantity),0) AS stock_total FROM receipt_details rd WHERE rd.product_id = ?";
+    $stock_stmt = $conn->prepare($stockQuery);
+    if (!$stock_stmt) throw new Exception("Prepare lỗi stock: " . $conn->error);
+    $stock_stmt->bind_param('i', $product_id);
+    $stock_stmt->execute();
+    $stockRes = $stock_stmt->get_result();
+    $stockRow = $stockRes->fetch_assoc();
+    $stockTotal = intval($stockRow['stock_total']);
+    $stock_stmt->close();
+
+    // Bạn có thể bổ sung logic trừ đi tổng quantity của các order_details đang 'pending' nếu cần.
+    if ($stockTotal > 0 && $quantity > $stockTotal) {
+        // Nếu muốn cho phép đặt vượt kho -> bỏ check này
+        $conn->rollback();
+        handleError("Số lượng yêu cầu vượt quá tồn kho hiện có ({$stockTotal}).", 400);
+    }
+
+    // Kiểm tra xem sản phẩm đã tồn tại trong order_details chưa (so sánh bằng COALESCE để xử lý NULL)
+    $detailCheckQuery = "
+        SELECT id, quantity
+        FROM order_details
+        WHERE order_id = ?
+          AND product_id = ?
+          AND COALESCE(color_name,'') = COALESCE(?, '')
+          AND COALESCE(configuration_name,'') = COALESCE(?, '')
+        LIMIT 1
+    ";
+    $detailCheck_stmt = $conn->prepare($detailCheckQuery);
+    if (!$detailCheck_stmt) throw new Exception("Prepare lỗi detail check: " . $conn->error);
+    // Nếu biến null, truyền chuỗi rỗng
+    $cname = $color_name ?? '';
+    $confname = $configuration_name ?? '';
+    $detailCheck_stmt->bind_param('iiss', $order_id, $product_id, $cname, $confname);
+    $detailCheck_stmt->execute();
+    $detailCheckResult = $detailCheck_stmt->get_result();
+
+    if ($detailCheckResult->num_rows > 0) {
+        // Cập nhật quantity và price
+        $updateQuery = "
+            UPDATE order_details
+            SET quantity = quantity + ?, price = ?
+            WHERE order_id = ?
+              AND product_id = ?
+              AND COALESCE(color_name,'') = COALESCE(?, '')
+              AND COALESCE(configuration_name,'') = COALESCE(?, '')
+        ";
+        $update_stmt = $conn->prepare($updateQuery);
+        if (!$update_stmt) throw new Exception("Prepare lỗi update order_details: " . $conn->error);
+        // types: quantity (i), price (d), order_id (i), product_id (i), color_name (s), configuration_name (s)
+        $update_stmt->bind_param('idiiss', $quantity, $price, $order_id, $product_id, $cname, $confname);
+        if (!$update_stmt->execute()) {
+            throw new Exception("Lỗi cập nhật order_details: " . $update_stmt->error);
+        }
+        $update_stmt->close();
+    } else {
+        // Insert mới
+        $insertQuery = "INSERT INTO order_details (order_id, product_id, quantity, price, color_name, configuration_name, status)
+                        VALUES (?, ?, ?, ?, ?, ?, 'pending')";
+        $insert_stmt = $conn->prepare($insertQuery);
+        if (!$insert_stmt) throw new Exception("Prepare lỗi insert order_details: " . $conn->error);
+        // types: order_id (i), product_id (i), quantity (i), price (d), color_name (s), config (s)
+        $insert_stmt->bind_param('iiidss', $order_id, $product_id, $quantity, $price, $cname, $confname);
+        if (!$insert_stmt->execute()) {
+            throw new Exception("Lỗi thêm order_details: " . $insert_stmt->error);
+        }
+        $insert_stmt->close();
+    }
+
+    // Commit transaction
+    $conn->commit();
+
+    // Chuyển hướng về trang product_detail (hoặc cart)
     redirect('product_detail.php?id=' . $product_id);
-} else {
-    handleError("Thiếu thông tin sản phẩm.", 400);
+} catch (Exception $e) {
+    // rollback nếu đang transaction
+    if ($conn->in_transaction) $conn->rollback();
+    error_log("add_to_cart error: " . $e->getMessage());
+    handleError("Đã có lỗi khi thêm sản phẩm vào giỏ hàng. Vui lòng thử lại.", 500);
 }
-?>

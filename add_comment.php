@@ -1,52 +1,54 @@
 <?php
+// add_comment.php
+// Sửa: dùng getDB(), validate CSRF, require login, prepared statement
+
 require_once 'includes/session.php';
 require_once 'includes/db.php';
+require_once 'includes/csrf.php';
+require_once 'includes/helpers.php';
+require_once 'includes/validator.php';
+require_once 'includes/error_handler.php';
 
-// Kiểm tra trạng thái đăng nhập
-if (!isset($_SESSION['user_id'])) {
+requireLogin(); // Yêu cầu đăng nhập
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: login.php');
     exit();
 }
 
-// Kết nối cơ sở dữ liệu
-$conn = new mysqli('localhost', 'root', '', 'shop');
+// Validate CSRF token
+validateCSRFPost();
 
-// Kiểm tra kết nối
-if ($conn->connect_error) {
-    die('Kết nối thất bại: ' . $conn->connect_error);
+$conn = getDB();
+
+// Lấy dữ liệu
+$product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
+$comment_content = isset($_POST['comment']) ? trim($_POST['comment']) : '';
+
+if ($product_id <= 0 || $comment_content === '') {
+    handleError("Dữ liệu không hợp lệ.", 400);
 }
 
-// Kiểm tra dữ liệu POST
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $product_id = isset($_POST['product_id']) ? (int)$_POST['product_id'] : 0;
-    $comment_content = isset($_POST['comment']) ? trim($_POST['comment']) : '';
-    $user_id = $_SESSION['user_id'];
+// Optional: giới hạn độ dài comment
+if (mb_strlen($comment_content) > 2000) {
+    handleError("Bình luận quá dài.", 400);
+}
 
-    // Kiểm tra giá trị hợp lệ
-    if ($product_id <= 0 || empty($comment_content)) {
-        echo "Dữ liệu không hợp lệ.";
-        exit();
-    }
+$user_id = $_SESSION['user_id'];
+$created_at = date('Y-m-d H:i:s');
 
-    // Chuẩn bị câu truy vấn
-    $stmt = $conn->prepare("INSERT INTO comment (product_id, user_id, content, created_at) VALUES (?, ?, ?, ?)");
-    $created_at = date('Y-m-d H:i:s');
-    $stmt->bind_param('iiss', $product_id, $user_id, $comment_content, $created_at);
-
-    // Thực thi câu truy vấn
-    if ($stmt->execute()) {
-        // Quay lại trang chi tiết sản phẩm
-        header("Location: product_detail.php?id=$product_id");
-        exit();
-    } else {
-        echo "Lỗi khi thêm bình luận: " . $stmt->error;
-    }
-
-    // Đóng kết nối
+$stmt = $conn->prepare("INSERT INTO comment (product_id, user_id, content, created_at) VALUES (?, ?, ?, ?)");
+if (!$stmt) {
+    error_log("Prepare lỗi add_comment: " . $conn->error);
+    handleError("Lỗi hệ thống. Vui lòng thử lại.", 500);
+}
+$stmt->bind_param('iiss', $product_id, $user_id, $comment_content, $created_at);
+if ($stmt->execute()) {
     $stmt->close();
+    // Quay lại trang chi tiết sản phẩm
+    redirect('product_detail.php?id=' . $product_id);
 } else {
-    echo "Phương thức không hợp lệ.";
+    error_log("Lỗi khi thêm bình luận: " . $stmt->error);
+    $stmt->close();
+    handleError("Lỗi khi thêm bình luận. Vui lòng thử lại.", 500);
 }
-
-$conn->close();
-?>
