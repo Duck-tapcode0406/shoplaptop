@@ -118,9 +118,12 @@ $categories = $conn->query("SELECT DISTINCT category_id FROM product WHERE categ
 <div class="card">
     <div class="card-header">
         <h3 class="card-title">Danh sách sản phẩm (<?php echo $total; ?> sản phẩm)</h3>
-        <div>
-            <button class="btn btn-sm btn-success" onclick="exportExcel()">
+        <div style="display: flex; gap: 10px;">
+            <button class="btn btn-sm btn-success" onclick="exportExcel()" title="Xuất file Excel">
                 <i class="fas fa-file-excel"></i> Export Excel
+            </button>
+            <button class="btn btn-sm btn-info" onclick="printTable()" title="In danh sách">
+                <i class="fas fa-print"></i> In
             </button>
         </div>
     </div>
@@ -247,7 +250,69 @@ $categories = $conn->query("SELECT DISTINCT category_id FROM product WHERE categ
 
 <script>
 function exportExcel() {
-    alert('Tính năng export đang được phát triển');
+    // Build export URL with current filters
+    const urlParams = new URLSearchParams(window.location.search);
+    const search = urlParams.get('search') || '';
+    const category = urlParams.get('category') || '';
+    
+    let exportUrl = 'export_products.php?';
+    if (search) exportUrl += 'search=' + encodeURIComponent(search) + '&';
+    if (category) exportUrl += 'category=' + encodeURIComponent(category);
+    
+    // Show loading
+    const btn = event.target.closest('button');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xuất...';
+    btn.disabled = true;
+    
+    // Trigger download
+    window.location.href = exportUrl;
+    
+    // Reset button after delay
+    setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }, 2000);
+}
+
+function printTable() {
+    const printContent = document.querySelector('.data-table').outerHTML;
+    const printWindow = window.open('', '', 'width=900,height=600');
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Danh sách sản phẩm - DNQDH Shop</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; }
+                h1 { text-align: center; margin-bottom: 20px; }
+                table { width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+                th { background: #f5f5f5; font-weight: bold; }
+                img { display: none; }
+                .btn, button, a { display: none !important; }
+                @media print {
+                    body { padding: 0; }
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Danh sách sản phẩm - DNQDH Shop</h1>
+            <p>Ngày xuất: ${new Date().toLocaleDateString('vi-VN')} ${new Date().toLocaleTimeString('vi-VN')}</p>
+            ${printContent}
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+    }, 250);
+}
+
+function confirmDelete(message) {
+    return confirm(message);
 }
 </script>
 
