@@ -5,12 +5,12 @@
         <div class="grid grid-4" style="margin-bottom: var(--space-3xl);">
             <!-- About Section -->
             <div class="footer-section">
-                <h4 style="margin-bottom: var(--space-lg);">
-                    <i class="fas fa-shopping-bag" style="color: var(--primary-light); margin-right: var(--space-sm);"></i>
-                    ModernShop
+                <h4 style="margin-bottom: var(--space-lg); display: flex; align-items: center; gap: 10px;">
+                    <img src="images/logo.png" alt="DNQDH" style="height: 40px; width: auto; filter: brightness(0) invert(1);">
+                    <span style="color: white; font-weight: bold;">DNQDH Shop</span>
                 </h4>
                 <p style="color: #B2BEC3; margin-bottom: var(--space-md);">
-                    Cửa hàng trực tuyến hiện đại với hàng triệu sản phẩm chất lượng cao. Mua sắm dễ dàng, giao hàng nhanh.
+                    Đức, Ngọc, Quang, Đạt, Hoàng - Cửa hàng trực tuyến với sản phẩm chất lượng cao. Mua sắm dễ dàng, giao hàng nhanh.
                 </p>
                 <div style="display: flex; gap: var(--space-md); font-size: 20px;">
                     <a href="#" style="color: #A29BFE; transition: color 0.3s; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: rgba(255,255,255,0.1); border-radius: 50%;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.2)'" onmouseout="this.style.backgroundColor='rgba(255,255,255,0.1)'">
@@ -64,15 +64,15 @@
                 <div style="color: #B2BEC3; line-height: 1.8;">
                     <p style="margin-bottom: var(--space-md);">
                         <i class="fas fa-map-marker-alt" style="color: var(--accent-light); margin-right: var(--space-sm); width: 20px; text-align: center;"></i>
-                        123 Đường Chính, Thành Phố, Việt Nam
+                        77 Nguyễn Huệ, Thành phố Huế
                     </p>
                     <p style="margin-bottom: var(--space-md);">
                         <i class="fas fa-phone" style="color: var(--accent-light); margin-right: var(--space-sm); width: 20px; text-align: center;"></i>
-                        +84 123 456 789
+                        0393340406
                     </p>
                     <p style="margin-bottom: var(--space-md);">
                         <i class="fas fa-envelope" style="color: var(--accent-light); margin-right: var(--space-sm); width: 20px; text-align: center;"></i>
-                        support@modernshop.vn
+                        daiducka123@gmail.com
                     </p>
                     <p>
                         <i class="fas fa-clock" style="color: var(--accent-light); margin-right: var(--space-sm); width: 20px; text-align: center;"></i>
@@ -90,8 +90,8 @@
             <!-- Copyright -->
             <div style="color: #B2BEC3; font-size: var(--fs-small);">
                 <p style="margin: 0;">
-                    &copy; 2024 ModernShop. Tất cả quyền được bảo vệ. <br>
-                    Thiết kế và phát triển bởi <a href="#" style="color: var(--primary-light); text-decoration: none;">ModernTeam</a>
+                    &copy; 2024 DNQDH Shop. Tất cả quyền được bảo vệ. <br>
+                    Thiết kế và phát triển bởi <a href="#" style="color: var(--primary-light); text-decoration: none;">Đức, Ngọc, Quang, Đạt, Hoàng</a>
                 </p>
             </div>
 

@@ -94,21 +94,20 @@ try {
     }
 
     // Kiểm tra tồn kho (dựa trên receipt_details như design hiện tại)
-    $stockQuery = "SELECT COALESCE(SUM(rd.quantity),0) AS stock_total FROM receipt_details rd WHERE rd.product_id = ?";
-    $stock_stmt = $conn->prepare($stockQuery);
-    if (!$stock_stmt) throw new Exception("Prepare lỗi stock: " . $conn->error);
-    $stock_stmt->bind_param('i', $product_id);
-    $stock_stmt->execute();
-    $stockRes = $stock_stmt->get_result();
-    $stockRow = $stockRes->fetch_assoc();
-    $stockTotal = intval($stockRow['stock_total']);
-    $stock_stmt->close();
-
-    // Bạn có thể bổ sung logic trừ đi tổng quantity của các order_details đang 'pending' nếu cần.
-    if ($stockTotal > 0 && $quantity > $stockTotal) {
-        // Nếu muốn cho phép đặt vượt kho -> bỏ check này
-        $conn->rollback();
-        handleError("Số lượng yêu cầu vượt quá tồn kho hiện có ({$stockTotal}).", 400);
+    // Bỏ qua nếu bảng receipt_details không tồn tại
+    $stockTotal = 0;
+    $checkTable = $conn->query("SHOW TABLES LIKE 'receipt_details'");
+    if ($checkTable && $checkTable->num_rows > 0) {
+        $stockQuery = "SELECT COALESCE(SUM(rd.quantity),0) AS stock_total FROM receipt_details rd WHERE rd.product_id = ?";
+        $stock_stmt = $conn->prepare($stockQuery);
+        if ($stock_stmt) {
+            $stock_stmt->bind_param('i', $product_id);
+            $stock_stmt->execute();
+            $stockRes = $stock_stmt->get_result();
+            $stockRow = $stockRes->fetch_assoc();
+            $stockTotal = intval($stockRow['stock_total']);
+            $stock_stmt->close();
+        }
     }
 
     // Kiểm tra xem sản phẩm đã tồn tại trong order_details chưa (so sánh bằng COALESCE để xử lý NULL)

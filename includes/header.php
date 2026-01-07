@@ -47,7 +47,7 @@ $current_location = isset($_SESSION['user_location']) ? $_SESSION['user_location
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Modern E-Commerce Shop">
-    <title>ModernShop - Cửa Hàng Trực Tuyến Hiện Đại</title>
+    <title>DNQDH Shop - Cửa Hàng Trực Tuyến</title>
     
            <!-- CSS Links -->
            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -105,8 +105,8 @@ $current_location = isset($_SESSION['user_location']) ? $_SESSION['user_location
         <div class="header-main-content">
             <!-- Logo -->
             <a href="index.php" class="header-logo">
-                <span>ModernShop</span>
-                <span class="logo-s">S</span>
+                <img src="images/logo.png" alt="DNQDH Shop" class="logo-img">
+                <span class="logo-text">DNQDH</span>
             </a>
 
             <!-- Category Dropdown -->

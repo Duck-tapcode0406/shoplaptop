@@ -12,8 +12,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // Show form
     echo '<form method="POST">' . getCSRFTokenField();
     echo '<input type="hidden" name="token" value="' . htmlspecialchars($token, ENT_QUOTES, "UTF-8") . '">';
-    echo '<input type="password" name="new_password" required minlength="6" placeholder="Mật khẩu mới">';
-    echo '<input type="password" name="confirm_password" required minlength="6" placeholder="Xác nhận mật khẩu">';
+    echo '<input type="password" name="new_password" required minlength="3" placeholder="Mật khẩu mới">';
+    echo '<input type="password" name="confirm_password" required minlength="3" placeholder="Xác nhận mật khẩu">';
     echo '<button>Đặt lại mật khẩu</button></form>';
     exit;
 }

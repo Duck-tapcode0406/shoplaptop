@@ -46,7 +46,7 @@ $top_products = $conn->query("
     LIMIT 5
 ");
 
-// Monthly revenue for chart - Get all 12 months
+// Monthly revenue for chart
 $monthly_revenue = $conn->query("
     SELECT 
         MONTH(o.datetime) as month,
@@ -58,28 +58,11 @@ $monthly_revenue = $conn->query("
     ORDER BY month
 ");
 
-// Create array for all months with revenue data
-$revenue_data = [];
-while ($row = $monthly_revenue->fetch_assoc()) {
-    $revenue_data[$row['month']] = $row['revenue'];
-}
-
-// Current month
-$current_month = (int)date('n');
-
-// Build arrays for all 12 months
 $months = [];
 $revenues = [];
-$month_names = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
-
-for ($i = 1; $i <= 12; $i++) {
-    $months[] = $month_names[$i - 1];
-    // Only show revenue for months up to current month, others are 0
-    if ($i <= $current_month && isset($revenue_data[$i])) {
-        $revenues[] = $revenue_data[$i];
-    } else {
-        $revenues[] = 0;
-    }
+while ($row = $monthly_revenue->fetch_assoc()) {
+    $months[] = 'T' . $row['month'];
+    $revenues[] = $row['revenue'];
 }
 ?>
 

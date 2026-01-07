@@ -1,5 +1,8 @@
 <?php
 require_once 'includes/session.php';
+require_once 'includes/db.php';
+require_once 'includes/csrf.php';
+require_once 'includes/validator.php';
 
 // Redirect if already logged in
 if (isset($_SESSION['user_id'])) {
@@ -7,38 +10,34 @@ if (isset($_SESSION['user_id'])) {
     exit();
 }
 
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "shop";
-
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
-
 $error_message = '';
 $success_message = '';
-$step = isset($_GET['step']) ? $_GET['step'] : 1;
+$step = isset($_GET['step']) ? intval($_GET['step']) : 1;
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Validate CSRF
+    validateCSRFPost();
+    
     if (isset($_POST['phone'])) {
         // Step 1: Verify phone number
-        $phone = isset($_POST['phone']) ? trim($_POST['phone']) : '';
+        $phone = Validator::sanitize($_POST['phone'] ?? '');
+        $phone_validation = Validator::phone($phone, true);
         
-        if (empty($phone)) {
-            $error_message = "Vui lòng nhập số điện thoại!";
+        if (!$phone_validation['valid']) {
+            $error_message = $phone_validation['message'];
         } else {
-            $stmt = $conn->prepare("SELECT id, username, phone FROM user WHERE phone = ?");
-            $stmt->bind_param("s", $phone);
+            $cleanPhone = $phone_validation['value'];
+            $stmt = $conn->prepare("SELECT id, username, phone FROM user WHERE phone = ? OR phone = ?");
+            // Try both with and without +84 prefix
+            $altPhone = preg_replace('/^0/', '+84', $cleanPhone);
+            $stmt->bind_param("ss", $cleanPhone, $altPhone);
             $stmt->execute();
             $result = $stmt->get_result();
             
             if ($result->num_rows > 0) {
                 $user = $result->fetch_assoc();
                 $_SESSION['reset_user_id'] = $user['id'];
-                $_SESSION['reset_phone'] = $phone;
+                $_SESSION['reset_phone'] = $cleanPhone;
                 header('Location: forgot_password.php?step=2');
                 exit();
             } else {
@@ -47,16 +46,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     } elseif (isset($_POST['new_password'])) {
         // Step 2: Reset password
-        $new_password = isset($_POST['new_password']) ? $_POST['new_password'] : '';
-        $confirm_password = isset($_POST['confirm_password']) ? $_POST['confirm_password'] : '';
+        $new_password = $_POST['new_password'] ?? '';
+        $confirm_password = $_POST['confirm_password'] ?? '';
         
-        if (empty($new_password) || empty($confirm_password)) {
-            $error_message = "Vui lòng nhập đầy đủ thông tin!";
-        } elseif (strlen($new_password) < 6) {
-            $error_message = "Mật khẩu phải có ít nhất 6 ký tự!";
+        $password_validation = Validator::password($new_password, false);
+        
+        if (!$password_validation['valid']) {
+            $error_message = $password_validation['message'];
         } elseif ($new_password !== $confirm_password) {
             $error_message = "Mật khẩu xác nhận không khớp!";
-        } elseif (isset($_SESSION['reset_user_id'])) {
+        } elseif (!isset($_SESSION['reset_user_id'])) {
+            $error_message = "Phiên làm việc đã hết hạn. Vui lòng thử lại từ đầu!";
+        } else {
             $user_id = $_SESSION['reset_user_id'];
             $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
             
@@ -71,8 +72,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             } else {
                 $error_message = "Có lỗi xảy ra. Vui lòng thử lại!";
             }
-        } else {
-            $error_message = "Phiên làm việc đã hết hạn. Vui lòng thử lại!";
         }
     }
 }
@@ -82,7 +81,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quên Mật Khẩu - DuckShop</title>
+    <title>Quên Mật Khẩu - DNQDH Shop</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/main.css">
     <style>
@@ -286,9 +285,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <?php endif; ?>
 
             <form method="POST">
+                <?php echo getCSRFTokenField(); ?>
                 <div class="form-group">
                     <label for="phone">Số điện thoại</label>
-                    <input type="tel" id="phone" name="phone" placeholder="Nhập số điện thoại" required autocomplete="tel" value="<?php echo isset($_POST['phone']) ? htmlspecialchars($_POST['phone']) : ''; ?>">
+                    <input type="tel" id="phone" name="phone" placeholder="VD: 0912345678 hoặc +84912345678" required autocomplete="tel" value="<?php echo isset($_POST['phone']) ? htmlspecialchars($_POST['phone']) : ''; ?>">
                 </div>
 
                 <div class="action-buttons">
@@ -317,10 +317,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <?php endif; ?>
 
             <form method="POST">
+                <?php echo getCSRFTokenField(); ?>
                 <div class="form-group">
                     <label for="new_password">Mật khẩu mới</label>
                     <div class="password-field">
-                        <input type="password" id="new_password" name="new_password" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)" required autocomplete="new-password" minlength="6">
+                        <input type="password" id="new_password" name="new_password" placeholder="Nhập mật khẩu mới (tối thiểu 3 ký tự)" required autocomplete="new-password" minlength="3">
                         <button type="button" class="password-toggle" onclick="togglePassword('new_password')" aria-label="Hiển thị mật khẩu">
                             <i class="fas fa-eye"></i>
                         </button>
@@ -330,7 +331,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="form-group">
                     <label for="confirm_password">Xác nhận mật khẩu</label>
                     <div class="password-field">
-                        <input type="password" id="confirm_password" name="confirm_password" placeholder="Nhập lại mật khẩu mới" required autocomplete="new-password" minlength="6">
+                        <input type="password" id="confirm_password" name="confirm_password" placeholder="Nhập lại mật khẩu mới" required autocomplete="new-password" minlength="3">
                         <button type="button" class="password-toggle" onclick="togglePassword('confirm_password')" aria-label="Hiển thị mật khẩu">
                             <i class="fas fa-eye"></i>
                         </button>
@@ -379,20 +380,90 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
 
-        // Validate password match
-        document.getElementById('confirm_password')?.addEventListener('input', function() {
-            const newPassword = document.getElementById('new_password').value;
-            const confirmPassword = this.value;
-            
-            if (confirmPassword && newPassword !== confirmPassword) {
-                this.setCustomValidity('Mật khẩu xác nhận không khớp!');
-            } else {
-                this.setCustomValidity('');
+        // Real-time validation
+        document.addEventListener('DOMContentLoaded', function() {
+            const phoneInput = document.getElementById('phone');
+            const newPasswordInput = document.getElementById('new_password');
+            const confirmPasswordInput = document.getElementById('confirm_password');
+
+            // Phone validation
+            if (phoneInput) {
+                phoneInput.addEventListener('blur', function() {
+                    const value = this.value.trim().replace(/[\s\-]/g, '');
+                    if (value && !/^(0|\+84|84)[0-9]{9,10}$/.test(value)) {
+                        showError(this, 'Số điện thoại không hợp lệ (VD: 0912345678)');
+                    } else if (value) {
+                        showSuccess(this);
+                    }
+                });
+                phoneInput.addEventListener('input', function() {
+                    clearError(this);
+                });
+            }
+
+            // Password validation
+            if (newPasswordInput) {
+                newPasswordInput.addEventListener('blur', function() {
+                    if (this.value && this.value.length < 3) {
+                        showError(this, 'Mật khẩu phải có ít nhất 3 ký tự');
+                    } else if (this.value) {
+                        showSuccess(this);
+                    }
+                });
+                newPasswordInput.addEventListener('input', function() {
+                    clearError(this);
+                });
+            }
+
+            // Confirm password validation
+            if (confirmPasswordInput) {
+                confirmPasswordInput.addEventListener('blur', function() {
+                    const newPassword = document.getElementById('new_password').value;
+                    if (this.value && newPassword !== this.value) {
+                        showError(this, 'Mật khẩu xác nhận không khớp');
+                    } else if (this.value) {
+                        showSuccess(this);
+                    }
+                });
+                confirmPasswordInput.addEventListener('input', function() {
+                    clearError(this);
+                });
             }
         });
+
+        function showError(input, message) {
+            input.style.borderColor = '#e74c3c';
+            input.style.background = '#fff5f5';
+            
+            const parent = input.closest('.form-group') || input.parentElement;
+            let existingError = parent.querySelector('.field-error');
+            if (existingError) existingError.remove();
+            
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'field-error';
+            errorDiv.style.cssText = 'color: #e74c3c; font-size: 12px; margin-top: 5px; display: flex; align-items: center; gap: 5px;';
+            errorDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + message;
+            parent.appendChild(errorDiv);
+        }
+
+        function showSuccess(input) {
+            input.style.borderColor = '#00b894';
+            input.style.background = '#f0fff4';
+            
+            const parent = input.closest('.form-group') || input.parentElement;
+            let existingError = parent.querySelector('.field-error');
+            if (existingError) existingError.remove();
+        }
+
+        function clearError(input) {
+            input.style.borderColor = '#e9ecef';
+            input.style.background = 'white';
+            
+            const parent = input.closest('.form-group') || input.parentElement;
+            let existingError = parent.querySelector('.field-error');
+            if (existingError) existingError.remove();
+        }
     </script>
 </body>
 </html>
-
-<?php $conn->close(); ?>
 

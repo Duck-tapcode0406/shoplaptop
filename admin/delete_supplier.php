@@ -11,12 +11,13 @@ if (!isset($_SESSION['user_id'])) {
 
 // Kiểm tra quyền admin
 $user_id = $_SESSION['user_id'];
-$sql_check_admin = "SELECT r.name FROM role r 
-                    JOIN user_role ur ON ur.role_id = r.id 
-                    WHERE ur.user_id = '$user_id' AND r.name = 'admin'";
-$result_check_admin = $conn->query($sql_check_admin);
+$admin_check = $conn->prepare("SELECT is_admin FROM user WHERE id = ?");
+$admin_check->bind_param('i', $user_id);
+$admin_check->execute();
+$admin_result = $admin_check->get_result();
+$admin_data = $admin_result->fetch_assoc();
 
-if ($result_check_admin->num_rows == 0) {
+if (!$admin_data || $admin_data['is_admin'] != 1) {
     echo "Bạn không có quyền truy cập trang này.";
     exit();
 }

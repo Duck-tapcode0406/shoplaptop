@@ -1,6 +1,7 @@
 <?php
 require_once 'includes/session.php';
 require_once 'includes/db.php';
+require_once 'includes/csrf.php';
 
 $product_id = isset($_GET['id']) ? intval($_GET['id']) : null;
 
@@ -133,7 +134,7 @@ if (isset($_SESSION['user_id'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($product['name']); ?> - DuckShop</title>
+    <title><?php echo htmlspecialchars($product['name']); ?> - DNQDH Shop</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/main.css">
     <style>
@@ -584,7 +585,19 @@ if (isset($_SESSION['user_id'])) {
         <div class="product-grid">
             <!-- Product Gallery -->
             <div class="product-gallery">
-                <img src="admin/<?php echo htmlspecialchars($product['path']); ?>" alt="<?php echo htmlspecialchars($product['name']); ?>" class="main-image">
+                <?php 
+                $rawPath = isset($product['path']) ? trim($product['path']) : '';
+                if (!empty($rawPath)) {
+                    if (strpos($rawPath, 'uploads/') === 0) {
+                        $imagePath = 'admin/' . $rawPath;
+                    } else {
+                        $imagePath = 'admin/uploads/' . $rawPath;
+                    }
+                } else {
+                    $imagePath = 'images/no-image.png';
+                }
+                ?>
+                <img src="<?php echo htmlspecialchars($imagePath); ?>" alt="<?php echo htmlspecialchars($product['name']); ?>" class="main-image" onerror="this.onerror=null; this.src='images/no-image.png';">
             </div>
 
             <!-- Product Information -->
@@ -630,6 +643,7 @@ if (isset($_SESSION['user_id'])) {
 
                 <!-- Add to Cart Form -->
                 <form method="POST" action="add_to_cart.php" style="margin-bottom: var(--space-lg);">
+                    <?php echo getCSRFTokenField(); ?>
                     <input type="hidden" name="product_id" value="<?php echo $product['id']; ?>">
                     
                     <div style="margin-bottom: var(--space-lg);">
@@ -686,7 +700,7 @@ if (isset($_SESSION['user_id'])) {
             <!-- Description Tab -->
             <div id="description" class="tab-content active">
                 <h3>Mô Tả Sản Phẩm</h3>
-                <p><?php echo nl2br(htmlspecialchars($product['description'])); ?></p>
+                <p><?php echo nl2br(htmlspecialchars($product['description'] ?? 'Chưa có mô tả cho sản phẩm này.')); ?></p>
             </div>
 
             <!-- Specs Tab -->
@@ -703,7 +717,7 @@ if (isset($_SESSION['user_id'])) {
                     </tr>
                     <tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: var(--space-md); font-weight: var(--fw-bold);">Thương Hiệu:</td>
-                        <td style="padding: var(--space-md);">DuckShop</td>
+                        <td style="padding: var(--space-md);">DNQDH Shop</td>
                     </tr>
                 </table>
             </div>
@@ -735,30 +749,28 @@ if (isset($_SESSION['user_id'])) {
                         </div>
                         <div class="rating-breakdown">
                             <?php
-                            if ($reviews_table_exists) {
-                                for ($i = 5; $i >= 1; $i--) {
-                                    $count_query = "SELECT COUNT(*) as count FROM reviews WHERE product_id = ? AND rating = ?";
-                                    $count_stmt = $conn->prepare($count_query);
-                                    if ($count_stmt) {
-                                        $count_stmt->bind_param('ii', $product_id, $i);
-                                        $count_stmt->execute();
-                                        $count_result = $count_stmt->get_result();
-                                        $count = $count_result->fetch_assoc()['count'];
-                                        $percentage = $total_reviews > 0 ? round(($count / $total_reviews) * 100) : 0;
-                                    } else {
-                                        $count = 0;
-                                        $percentage = 0;
-                                    }
-                                    ?>
-                                    <div class="rating-bar-item">
-                                        <span class="rating-label"><?php echo $i; ?> <i class="fas fa-star"></i></span>
-                                        <div class="rating-bar">
-                                            <div class="rating-bar-fill" style="width: <?php echo $percentage; ?>%"></div>
-                                        </div>
-                                        <span class="rating-percentage"><?php echo $count; ?></span>
-                                    </div>
-                                    <?php
+                            for ($i = 5; $i >= 1; $i--) {
+                                $count_query = "SELECT COUNT(*) as count FROM reviews WHERE product_id = ? AND rating = ?";
+                                $count_stmt = $conn->prepare($count_query);
+                                if ($count_stmt) {
+                                    $count_stmt->bind_param('ii', $product_id, $i);
+                                    $count_stmt->execute();
+                                    $count_result = $count_stmt->get_result();
+                                    $count = $count_result->fetch_assoc()['count'];
+                                    $percentage = $total_reviews > 0 ? round(($count / $total_reviews) * 100) : 0;
+                                } else {
+                                    $count = 0;
+                                    $percentage = 0;
                                 }
+                                ?>
+                                <div class="rating-bar-item">
+                                    <span class="rating-label"><?php echo $i; ?> <i class="fas fa-star"></i></span>
+                                    <div class="rating-bar">
+                                        <div class="rating-bar-fill" style="width: <?php echo $percentage; ?>%"></div>
+                                    </div>
+                                    <span class="rating-percentage"><?php echo $count; ?></span>
+                                </div>
+                                <?php
                             }
                             ?>
                         </div>
@@ -766,7 +778,7 @@ if (isset($_SESSION['user_id'])) {
                 </div>
                 <?php else: ?>
                 <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i> Hệ thống đánh giá đang được thiết lập. Vui lòng chạy file <code>database_reviews.sql</code> để kích hoạt tính năng đánh giá.
+                    <i class="fas fa-info-circle"></i> Hệ thống đánh giá đang được thiết lập.
                 </div>
                 <?php endif; ?>
 
@@ -911,7 +923,52 @@ if (isset($_SESSION['user_id'])) {
             tabBtns.forEach(btn => btn.classList.remove('active'));
             
             document.getElementById(tabName).classList.add('active');
-            event.target.classList.add('active');
+            event.target.closest('.tab-btn').classList.add('active');
+        }
+
+        // Toggle Wishlist function
+        function toggleWishlist(productId) {
+            <?php if (!isset($_SESSION['user_id'])): ?>
+                alert('Vui lòng đăng nhập để thêm sản phẩm vào danh sách yêu thích.');
+                window.location.href = 'login.php';
+                return;
+            <?php endif; ?>
+
+            const btn = document.getElementById('wishlist-btn');
+            const icon = btn.querySelector('i');
+            const text = document.getElementById('wishlist-text');
+            const isInWishlist = icon.classList.contains('fas');
+
+            const url = isInWishlist ? 'remove_wishlist.php' : 'add_wishlist.php';
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'product_id=' + productId
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    icon.classList.toggle('fas');
+                    icon.classList.toggle('far');
+                    if (icon.classList.contains('fas')) {
+                        text.textContent = 'Đã thêm vào Danh Sách Yêu Thích';
+                    } else {
+                        text.textContent = 'Thêm vào Danh Sách Yêu Thích';
+                    }
+                    if (typeof showSuccess === 'function') {
+                        showSuccess('Thành công', data.message);
+                    }
+                } else {
+                    alert(data.message || 'Có lỗi xảy ra');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Có lỗi xảy ra khi thực hiện thao tác');
+            });
         }
 
         // Rating stars interaction

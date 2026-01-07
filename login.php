@@ -50,20 +50,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     // Regenerate session ID after login
                     regenerateSessionAfterLogin();
 
-                    // Check user role using prepared statement
+                    // Check if user is admin
                     $user_id = $row['id'];
-                    $role_stmt = $conn->prepare("SELECT r.id AS role_id, r.name AS role_name 
-                                                FROM role r 
-                                                JOIN user_role ur ON ur.role_id = r.id
-                                                WHERE ur.user_id = ? AND r.name = 'admin'");
-                    $role_stmt->bind_param('i', $user_id);
-                    $role_stmt->execute();
-                    $role_result = $role_stmt->get_result();
-
-                    if ($role_result->num_rows > 0) {
-                        $role = $role_result->fetch_assoc();
-                        $_SESSION['role_id'] = $role['role_id'];
-                        $_SESSION['role_name'] = $role['role_name'];
+                    $admin_check = $conn->prepare("SELECT is_admin FROM user WHERE id = ?");
+                    $admin_check->bind_param('i', $user_id);
+                    $admin_check->execute();
+                    $admin_result = $admin_check->get_result();
+                    $admin_data = $admin_result->fetch_assoc();
+                    $is_admin = $admin_data ? $admin_data['is_admin'] : 0;
+                    
+                    if ($is_admin == 1) {
+                        $_SESSION['is_admin'] = 1;
                         redirect(BASE_URL . '/admin/index.php');
                     } else {
                         redirect(BASE_URL . '/index.php');
@@ -87,7 +84,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đăng Nhập - ModernShop</title>
+    <title>Đăng Nhập - DNQDH Shop</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/main.css">
     <style>
@@ -423,7 +420,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <!-- Left Side - Image & Quote -->
         <div class="split-left">
             <div class="split-left-content">
-                <h1>Chào mừng đến với ModernShop</h1>
+                <h1>Chào mừng đến với DNQDH Shop</h1>
                 <p>"Công nghệ không chỉ là công cụ, mà là cánh cửa mở ra tương lai. Khám phá thế giới công nghệ với chúng tôi."</p>
             </div>
         </div>
@@ -445,7 +442,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="auth-logo">
                     <i class="fas fa-shopping-bag"></i>
                 </div>
-                <h1 class="auth-title">ModernShop</h1>
+                <h1 class="auth-title">DNQDH Shop</h1>
                 <p class="auth-subtitle">Đăng nhập để tiếp tục</p>
             </div>
 
@@ -530,6 +527,108 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 toggleBtn.classList.remove('fa-eye-slash');
                 toggleBtn.classList.add('fa-eye');
             }
+        }
+
+        // Real-time validation
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('.auth-form');
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+
+            // Validate on blur
+            usernameInput.addEventListener('blur', function() {
+                validateUsername(this.value);
+            });
+
+            passwordInput.addEventListener('blur', function() {
+                validatePassword(this.value);
+            });
+
+            // Clear error on input
+            usernameInput.addEventListener('input', function() {
+                clearError(this);
+            });
+
+            passwordInput.addEventListener('input', function() {
+                clearError(this);
+            });
+
+            // Form submit validation
+            form.addEventListener('submit', function(e) {
+                let isValid = true;
+                
+                if (!validateUsername(usernameInput.value)) isValid = false;
+                if (!validatePassword(passwordInput.value)) isValid = false;
+                
+                if (!isValid) {
+                    e.preventDefault();
+                    const firstError = document.querySelector('.field-error');
+                    if (firstError) {
+                        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+            });
+        });
+
+        function validateUsername(value) {
+            const input = document.getElementById('username');
+            if (!value.trim()) {
+                showError(input, 'Tên đăng nhập không được để trống');
+                return false;
+            }
+            if (value.length < 3) {
+                showError(input, 'Tên đăng nhập phải có ít nhất 3 ký tự');
+                return false;
+            }
+            showSuccess(input);
+            return true;
+        }
+
+        function validatePassword(value) {
+            const input = document.getElementById('password');
+            if (!value) {
+                showError(input, 'Mật khẩu không được để trống');
+                return false;
+            }
+            if (value.length < 3) {
+                showError(input, 'Mật khẩu phải có ít nhất 3 ký tự');
+                return false;
+            }
+            showSuccess(input);
+            return true;
+        }
+
+        function showError(input, message) {
+            input.style.borderColor = '#e74c3c';
+            input.style.background = '#fff5f5';
+            
+            const parent = input.closest('.form-group') || input.parentElement;
+            let existingError = parent.querySelector('.field-error');
+            if (existingError) existingError.remove();
+            
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'field-error';
+            errorDiv.style.cssText = 'color: #e74c3c; font-size: 12px; margin-top: 5px; display: flex; align-items: center; gap: 5px;';
+            errorDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + message;
+            parent.appendChild(errorDiv);
+        }
+
+        function showSuccess(input) {
+            input.style.borderColor = '#00b894';
+            input.style.background = '#f0fff4';
+            
+            const parent = input.closest('.form-group') || input.parentElement;
+            let existingError = parent.querySelector('.field-error');
+            if (existingError) existingError.remove();
+        }
+
+        function clearError(input) {
+            input.style.borderColor = '#e9ecef';
+            input.style.background = '#f8f9fa';
+            
+            const parent = input.closest('.form-group') || input.parentElement;
+            let existingError = parent.querySelector('.field-error');
+            if (existingError) existingError.remove();
         }
     </script>
 </body>

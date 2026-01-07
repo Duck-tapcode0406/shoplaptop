@@ -1,6 +1,7 @@
 <?php
 require_once 'includes/session.php';
 require_once 'includes/db.php';
+require_once 'includes/csrf.php';
 
 // Lưu thời gian hiện tại vào session (nếu chưa có)
 if (!isset($_SESSION['current_time'])) {
@@ -144,7 +145,7 @@ $result = $stmt->get_result();
     <style>
         /* Hero Banner */
         .hero {
-            background: linear-gradient(135deg, #6C5CE7 0%, #A29BFE 100%);
+            background: url('images/anhbia.png') center center / cover no-repeat;
             color: white;
             padding: var(--space-5xl) var(--space-md);
             text-align: center;
@@ -153,17 +154,22 @@ $result = $stmt->get_result();
             position: relative;
             overflow: hidden;
             animation: fadeInDown 0.8s ease-out;
+            min-height: 350px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
 
         .hero::before {
             content: '';
             position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-            animation: spin 20s linear infinite;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(108, 92, 231, 0.7) 0%, rgba(162, 155, 254, 0.5) 100%);
+            z-index: 0;
         }
 
         .hero > * {
@@ -175,12 +181,14 @@ $result = $stmt->get_result();
             font-size: var(--fs-display);
             margin-bottom: var(--space-lg);
             color: white;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
         }
 
         .hero p {
             font-size: var(--fs-body-lg);
             margin-bottom: var(--space-2xl);
-            color: rgba(255, 255, 255, 0.9);
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: 1px 1px 4px rgba(0,0,0,0.3);
         }
 
         /* Filters Section */
@@ -272,39 +280,355 @@ $result = $stmt->get_result();
             font-size: var(--fs-small);
         }
 
-        /* Product Card Styles */
+        /* Product Card Styles - Modern Design */
         .product-card {
             position: relative;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: fadeInUp 0.6s ease-out backwards;
+        }
+
+        .product-card:nth-child(1) { animation-delay: 0.05s; }
+        .product-card:nth-child(2) { animation-delay: 0.1s; }
+        .product-card:nth-child(3) { animation-delay: 0.15s; }
+        .product-card:nth-child(4) { animation-delay: 0.2s; }
+        .product-card:nth-child(5) { animation-delay: 0.25s; }
+        .product-card:nth-child(6) { animation-delay: 0.3s; }
+        .product-card:nth-child(7) { animation-delay: 0.35s; }
+        .product-card:nth-child(8) { animation-delay: 0.4s; }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .product-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+            transform: translateY(-12px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(108, 92, 231, 0.2);
         }
 
         .product-clickable-area {
             cursor: pointer;
-            transition: opacity 0.3s ease;
+            display: block;
         }
 
-        .product-clickable-area:hover {
-            opacity: 0.9;
+        /* Product Image */
+        .product-image-wrapper {
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
         }
 
+        .product-image-wrapper::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            transition: left 0.6s ease;
+            z-index: 2;
+        }
+
+        .product-card:hover .product-image-wrapper::before {
+            left: 100%;
+        }
+
+        .product-image {
+            width: 100%;
+            height: 240px;
+            object-fit: cover;
+            transition: transform 0.5s ease;
+        }
+
+        .product-card:hover .product-image {
+            transform: scale(1.08);
+        }
+
+        /* Product Badge */
+        .product-badge {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            z-index: 3;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .product-badge.sale {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: white;
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+        }
+
+        .product-badge.new {
+            background: linear-gradient(135deg, #00b894, #00cec9);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 184, 148, 0.4);
+        }
+
+        /* Wishlist Button */
+        .product-wishlist {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.95);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #adb5bd;
+            z-index: 3;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        .product-card:hover .product-wishlist {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .product-wishlist:hover {
+            color: #e74c3c;
+            transform: scale(1.15);
+            box-shadow: 0 6px 20px rgba(231, 76, 60, 0.3);
+        }
+
+        .product-wishlist.active {
+            color: #e74c3c;
+            background: #fff5f5;
+        }
+
+        .product-wishlist.active i {
+            animation: heartBeat 0.6s ease;
+        }
+
+        @keyframes heartBeat {
+            0% { transform: scale(1); }
+            25% { transform: scale(1.3); }
+            50% { transform: scale(1); }
+            75% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+
+        /* Product Info */
+        .product-info {
+            padding: 20px;
+            background: white;
+        }
+
+        .product-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2d3436;
+            margin-bottom: 10px;
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            transition: color 0.3s ease;
+            min-height: 44px;
+        }
+
+        .product-card:hover .product-name {
+            color: #6C5CE7;
+        }
+
+        /* Product Rating */
+        .product-rating {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .product-rating .stars {
+            display: flex;
+            gap: 2px;
+        }
+
+        .product-rating .stars i {
+            font-size: 13px;
+            color: #ffc107;
+            transition: transform 0.2s ease;
+        }
+
+        .product-card:hover .product-rating .stars i {
+            animation: starTwinkle 0.5s ease forwards;
+        }
+
+        .product-card:hover .product-rating .stars i:nth-child(1) { animation-delay: 0.05s; }
+        .product-card:hover .product-rating .stars i:nth-child(2) { animation-delay: 0.1s; }
+        .product-card:hover .product-rating .stars i:nth-child(3) { animation-delay: 0.15s; }
+        .product-card:hover .product-rating .stars i:nth-child(4) { animation-delay: 0.2s; }
+        .product-card:hover .product-rating .stars i:nth-child(5) { animation-delay: 0.25s; }
+
+        @keyframes starTwinkle {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3) rotate(15deg); }
+            100% { transform: scale(1) rotate(0); }
+        }
+
+        .product-rating .count {
+            font-size: 12px;
+            color: #868e96;
+        }
+
+        /* Product Price */
+        .product-price {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .product-price-current {
+            font-size: 20px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #6C5CE7, #a29bfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .product-price-original {
+            font-size: 14px;
+            color: #adb5bd;
+            text-decoration: line-through;
+        }
+
+        /* Product Actions on Hover */
         .product-actions-hover {
-            display: none;
-            padding: 10px 0;
-            margin-top: 10px;
+            padding: 0 20px 20px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
         }
 
         .product-card:hover .product-actions-hover {
-            display: block;
+            opacity: 1;
+            transform: translateY(0);
         }
 
         .product-actions-hover .btn {
             width: 100%;
             justify-content: center;
+            padding: 14px 20px;
+            font-weight: 600;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #6C5CE7 0%, #a29bfe 100%);
+            border: none;
+            color: white;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .product-actions-hover .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .product-actions-hover .btn:hover::before {
+            left: 100%;
+        }
+
+        .product-actions-hover .btn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 25px rgba(108, 92, 231, 0.4);
+        }
+
+        .product-actions-hover .btn i {
+            margin-right: 8px;
+            transition: transform 0.3s ease;
+        }
+
+        .product-actions-hover .btn:hover i {
+            transform: translateX(-3px);
+            animation: cartBounce 0.5s ease;
+        }
+
+        @keyframes cartBounce {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(3px); }
+        }
+
+        /* Quick View Overlay */
+        .product-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(108, 92, 231, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 4;
+            pointer-events: none;
+        }
+
+        .product-card:hover .product-overlay {
+            opacity: 0;
+        }
+
+        /* Grid improvements */
+        .grid-4 {
+            gap: 24px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .product-image {
+                height: 180px;
+            }
+            
+            .product-wishlist {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            
+            .product-actions-hover {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
     </style>
 </head>
@@ -312,8 +636,8 @@ $result = $stmt->get_result();
         <!-- Hero Banner -->
     <div class="container">
         <div class="hero">
-            <h1><i class="fas fa-shopping-bag" style="margin-right: var(--space-md);"></i>ModernShop</h1>
-            <p>Khám phá hàng triệu sản phẩm chất lượng cao với giá tốt nhất</p>
+            <h1>Khám Phá Sản Phẩm Chất Lượng</h1>
+            <p>Hàng triệu sản phẩm công nghệ với giá tốt nhất - Giao hàng nhanh chóng</p>
             <?php if (isset($_SESSION['username'])): ?>
                 <p style="font-size: var(--fs-small); color: rgba(255,255,255,0.8);">Xin chào, <strong><?php echo htmlspecialchars($_SESSION['username']); ?></strong>!</p>
             <?php endif; ?>
@@ -428,14 +752,13 @@ $result = $stmt->get_result();
                     }
                     ?>
                     <div class="product-card">
-                        <a href="product_detail.php?id=<?php echo $row['id']; ?>" class="product-clickable-area" style="text-decoration: none; color: inherit; display: block;">
+                        <a href="product_detail.php?id=<?php echo $row['id']; ?>" class="product-clickable-area" style="text-decoration: none; color: inherit;">
                             <!-- Product Image -->
                             <div class="product-image-wrapper">
                                 <?php
-                                // Xử lý path giống shopdemo - đơn giản và trực tiếp
                                 $imagePath = !empty($row['path']) ? 'admin/' . htmlspecialchars($row['path']) : 'images/no-image.png';
                                 ?>
-                                <img src="<?php echo $imagePath; ?>" alt="<?php echo htmlspecialchars($row['name']); ?>" class="product-image" style="width:100%;height:220px;object-fit:cover;border-radius:8px;background:#f3f3f3;" onerror="this.onerror=null; this.src='images/no-image.png';">
+                                <img src="<?php echo $imagePath; ?>" alt="<?php echo htmlspecialchars($row['name']); ?>" class="product-image" onerror="this.onerror=null; this.src='images/no-image.png';">
                                 
                                 <!-- Sale Badge -->
                                 <?php if ($is_on_sale): ?>
@@ -445,7 +768,7 @@ $result = $stmt->get_result();
                                 <?php endif; ?>
 
                                 <!-- Wishlist Button -->
-                                <button type="button" class="product-wishlist" onclick="event.preventDefault(); event.stopPropagation(); toggleWishlist(this)">
+                                <button type="button" class="product-wishlist" data-product-id="<?php echo $row['id']; ?>" onclick="event.preventDefault(); event.stopPropagation(); toggleWishlist(this, <?php echo $row['id']; ?>)" title="Thêm vào yêu thích">
                                     <i class="far fa-heart"></i>
                                 </button>
                             </div>
@@ -457,20 +780,29 @@ $result = $stmt->get_result();
                                 <!-- Rating -->
                                 <div class="product-rating">
                                     <div class="stars">
-                                        <i class="fas fa-star"></i>
-                                        <i class="fas fa-star"></i>
-                                        <i class="fas fa-star"></i>
-                                        <i class="fas fa-star"></i>
-                                        <i class="far fa-star"></i>
+                                        <?php 
+                                        $rating = rand(35, 50) / 10; // Random rating 3.5-5.0
+                                        $fullStars = floor($rating);
+                                        $hasHalf = ($rating - $fullStars) >= 0.5;
+                                        for ($i = 1; $i <= 5; $i++) {
+                                            if ($i <= $fullStars) {
+                                                echo '<i class="fas fa-star"></i>';
+                                            } elseif ($i == $fullStars + 1 && $hasHalf) {
+                                                echo '<i class="fas fa-star-half-alt"></i>';
+                                            } else {
+                                                echo '<i class="far fa-star"></i>';
+                                            }
+                                        }
+                                        ?>
                                     </div>
-                                    <span class="count">(120 reviews)</span>
+                                    <span class="count">(<?php echo rand(50, 500); ?>)</span>
                                 </div>
 
                                 <!-- Price -->
                                 <div class="product-price">
                                     <?php if ($is_on_sale): ?>
-                                        <span class="product-price-original"><?php echo number_format($original_price, 0, ',', '.'); ?> ₫</span>
                                         <span class="product-price-current"><?php echo number_format($price, 0, ',', '.'); ?> ₫</span>
+                                        <span class="product-price-original"><?php echo number_format($original_price, 0, ',', '.'); ?> ₫</span>
                                     <?php else: ?>
                                         <span class="product-price-current"><?php echo number_format($price, 0, ',', '.'); ?> ₫</span>
                                     <?php endif; ?>
@@ -478,11 +810,12 @@ $result = $stmt->get_result();
                             </div>
                         </a>
                         
-                        <!-- Actions - Hover (hiển thị khi hover) -->
+                        <!-- Actions - Hover -->
                         <div class="product-actions-hover">
-                            <form method="POST" action="add_to_cart.php" style="display: flex; gap: 10px; width: 100%;" onclick="event.stopPropagation();">
+                            <form method="POST" action="add_to_cart.php" onclick="event.stopPropagation();">
+                                <?php echo getCSRFTokenField(); ?>
                                 <input type="hidden" name="product_id" value="<?php echo $row['id']; ?>">
-                                <button type="submit" class="btn btn-primary" style="flex: 1; padding: 12px;">
+                                <button type="submit" class="btn btn-primary">
                                     <i class="fas fa-shopping-cart"></i> Thêm Vào Giỏ Hàng
                                 </button>
                             </form>
@@ -530,14 +863,53 @@ $result = $stmt->get_result();
     <?php include('includes/footer.php'); ?>
 
     <script>
-        function toggleWishlist(btn) {
-            btn.querySelector('i').classList.toggle('far');
-            btn.querySelector('i').classList.toggle('fas');
-            btn.classList.toggle('active');
+        function toggleWishlist(btn, productId) {
+            <?php if (!isset($_SESSION['user_id'])): ?>
+                alert('Vui lòng đăng nhập để thêm sản phẩm vào danh sách yêu thích.');
+                window.location.href = 'login.php';
+                return;
+            <?php endif; ?>
+
+            const icon = btn.querySelector('i');
+            const isInWishlist = icon.classList.contains('fas');
+
+            // Determine action: add or remove
+            const url = isInWishlist ? 'remove_wishlist.php' : 'add_wishlist.php';
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'product_id=' + productId
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Toggle UI
+                    icon.classList.toggle('fas');
+                    icon.classList.toggle('far');
+                    btn.classList.toggle('active');
+                    
+                    if (typeof showSuccess === 'function') {
+                        showSuccess('Thành công', data.message);
+                    }
+                } else {
+                    if (typeof showError === 'function') {
+                        showError('Lỗi', data.message || 'Có lỗi xảy ra');
+                    } else {
+                        alert(data.message || 'Có lỗi xảy ra');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Có lỗi xảy ra khi thực hiện thao tác');
+            });
         }
 
         // Sort functionality
-        document.querySelector('.sort-select').addEventListener('change', (e) => {
+        document.querySelector('.sort-select')?.addEventListener('change', (e) => {
             const sortValue = e.target.value;
             // Add your sorting logic here
         });

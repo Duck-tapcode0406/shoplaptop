@@ -236,6 +236,10 @@ if ($wishlist_table_exists) {
                         </div>
                         <div class="wishlist-item-actions">
                             <form method="POST" action="add_to_cart.php" style="flex: 1;">
+                                <?php 
+                                require_once 'includes/csrf.php';
+                                echo getCSRFTokenField(); 
+                                ?>
                                 <input type="hidden" name="product_id" value="<?php echo $item['product_id']; ?>">
                                 <input type="hidden" name="quantity" value="1">
                                 <button type="submit" class="btn btn-primary btn-sm">

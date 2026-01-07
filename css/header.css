@@ -16,6 +16,7 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 15px;
+    text-align: left;
 }
 
 .header-top-left {
@@ -86,26 +87,33 @@
 }
 
 .header-logo {
-    font-size: 28px;
+    font-size: 20px;
     font-weight: bold;
-    color: #4169E1;
+    color: #3d3a50;
     text-decoration: none;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     white-space: nowrap;
-    transition: color 0.3s;
+    transition: all 0.3s;
 }
 
 .header-logo:hover {
-    color: #1E90FF;
+    opacity: 0.85;
+    transform: scale(1.02);
 }
 
-.header-logo .logo-s {
-    font-size: 32px;
-    transform: rotate(-15deg);
-    display: inline-block;
-    color: #4169E1;
+.header-logo .logo-img {
+    height: 45px;
+    width: auto;
+    object-fit: contain;
+}
+
+.header-logo .logo-text {
+    font-size: 22px;
+    font-weight: 800;
+    color: #3d3a50;
+    letter-spacing: 1px;
 }
 
 .header-category-btn,

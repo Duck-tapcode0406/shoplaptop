@@ -27,10 +27,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username_validation = Validator::username($input_username);
     $password_validation = Validator::password($input_password, false);
     $email_validation = Validator::email($email);
-    $phone_validation = Validator::phone($phone);
+    $phone_validation = Validator::phone($phone, false); // Phone is optional
+    $familyname_validation = Validator::name($familyname, 'Họ');
+    $firstname_validation = Validator::name($firstname, 'Tên');
     
-    if (empty($familyname) || empty($firstname)) {
-        $error_message = "Vui lòng điền đầy đủ các trường bắt buộc!";
+    if (!$familyname_validation['valid']) {
+        $error_message = $familyname_validation['message'];
+    } elseif (!$firstname_validation['valid']) {
+        $error_message = $firstname_validation['message'];
     } elseif (!$username_validation['valid']) {
         $error_message = $username_validation['message'];
     } elseif (!$password_validation['valid']) {
@@ -68,16 +72,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 if ($insert_stmt->execute()) {
                     $user_id = $conn->insert_id;
-                    $role_id = 2;
                     
-                    // Insert user role using prepared statement
-                    $role_stmt = $conn->prepare("INSERT INTO user_role (role_id, user_id) VALUES (?, ?)");
-                    $role_stmt->bind_param('ii', $role_id, $user_id);
-
-                    if ($role_stmt->execute()) {
-                        $success_message = "Đăng ký thành công! Chuyển hướng đến trang đăng nhập...";
-                        header("refresh:2;url=login.php");
-                    } else {
+                    // User mới mặc định là customer (is_admin = 0), không cần làm gì thêm
+                    $success_message = "Đăng ký thành công! Chuyển hướng đến trang đăng nhập...";
+                    header("refresh:2;url=login.php");
+                } else {
                         error_log("Error assigning role: " . $role_stmt->error);
                         $error_message = "Lỗi khi gán quyền!";
                     }
@@ -95,7 +94,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đăng Ký - ModernShop</title>
+    <title>Đăng Ký - DNQDH Shop</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/main.css">
     <style>
@@ -416,7 +415,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <!-- Left Side - Image & Quote -->
         <div class="split-left">
             <div class="split-left-content">
-                <h1>Tham Gia ModernShop Ngay Hôm Nay</h1>
+                <h1>Tham Gia DNQDH Shop Ngay Hôm Nay</h1>
                 <p>"Khởi đầu hành trình công nghệ của bạn với chúng tôi. Tạo tài khoản và khám phá thế giới công nghệ tuyệt vời."</p>
             </div>
         </div>
@@ -431,7 +430,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <i class="fas fa-user-plus"></i>
                 </div>
                 <h1 class="auth-title">Tạo Tài Khoản</h1>
-                <p class="auth-subtitle">Tham gia ModernShop ngay hôm nay</p>
+                <p class="auth-subtitle">Tham gia DNQDH Shop ngay hôm nay</p>
             </div>
 
             <!-- Alerts -->
@@ -485,7 +484,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <!-- Password -->
                 <div class="form-group form-row full">
                     <label for="password">Mật khẩu <span class="required">*</span></label>
-                    <input type="password" id="password" name="password" placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)" required onchange="checkPasswordStrength()">
+                    <input type="password" id="password" name="password" placeholder="Nhập mật khẩu (tối thiểu 3 ký tự)" required onchange="checkPasswordStrength()">
                     <div class="password-strength">
                         <div class="password-strength-bar" id="strength-bar"></div>
                     </div>
@@ -517,38 +516,170 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
 
     <script>
+        // Validation rules matching server-side
+        const RULES = {
+            MIN_PASSWORD: 3,
+            MIN_USERNAME: 3,
+            MAX_USERNAME: 50
+        };
+
+        // Real-time validation
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('.auth-form');
+            const inputs = {
+                username: document.getElementById('username'),
+                familyname: document.getElementById('familyname'),
+                firstname: document.getElementById('firstname'),
+                email: document.getElementById('email'),
+                phone: document.getElementById('phone'),
+                password: document.getElementById('password'),
+                confirm_password: document.getElementById('confirm_password')
+            };
+
+            // Add validation on blur
+            Object.keys(inputs).forEach(key => {
+                if (inputs[key]) {
+                    inputs[key].addEventListener('blur', function() {
+                        validateField(key, this.value);
+                    });
+                    inputs[key].addEventListener('input', function() {
+                        clearError(this);
+                        if (key === 'password') checkPasswordStrength();
+                    });
+                }
+            });
+        });
+
+        function validateField(field, value) {
+            const input = document.getElementById(field);
+            let error = '';
+
+            switch(field) {
+                case 'username':
+                    if (!value.trim()) error = 'Tên đăng nhập không được để trống';
+                    else if (value.length < RULES.MIN_USERNAME) error = 'Tên đăng nhập phải có ít nhất ' + RULES.MIN_USERNAME + ' ký tự';
+                    else if (value.length > RULES.MAX_USERNAME) error = 'Tên đăng nhập không được quá ' + RULES.MAX_USERNAME + ' ký tự';
+                    else if (!/^[a-zA-Z0-9_]+$/.test(value)) error = 'Tên đăng nhập chỉ được chứa chữ cái, số và dấu gạch dưới';
+                    break;
+                case 'familyname':
+                    if (!value.trim()) error = 'Họ không được để trống';
+                    break;
+                case 'firstname':
+                    if (!value.trim()) error = 'Tên không được để trống';
+                    break;
+                case 'email':
+                    if (!value.trim()) error = 'Email không được để trống';
+                    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) error = 'Email không hợp lệ (VD: example@gmail.com)';
+                    break;
+                case 'phone':
+                    if (value.trim() && !/^(0|\+84|84)[0-9]{9,10}$/.test(value.replace(/[\s\-]/g, ''))) {
+                        error = 'Số điện thoại không hợp lệ (VD: 0912345678)';
+                    }
+                    break;
+                case 'password':
+                    if (!value) error = 'Mật khẩu không được để trống';
+                    else if (value.length < RULES.MIN_PASSWORD) error = 'Mật khẩu phải có ít nhất ' + RULES.MIN_PASSWORD + ' ký tự';
+                    break;
+                case 'confirm_password':
+                    const password = document.getElementById('password').value;
+                    if (!value) error = 'Vui lòng xác nhận mật khẩu';
+                    else if (value !== password) error = 'Mật khẩu xác nhận không khớp';
+                    break;
+            }
+
+            if (error) {
+                showError(input, error);
+                return false;
+            } else {
+                showSuccess(input);
+                return true;
+            }
+        }
+
+        function showError(input, message) {
+            input.style.borderColor = '#e74c3c';
+            input.style.background = '#fff5f5';
+            
+            // Remove existing error message
+            let existingError = input.parentElement.querySelector('.field-error');
+            if (existingError) existingError.remove();
+            
+            // Add error message
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'field-error';
+            errorDiv.style.cssText = 'color: #e74c3c; font-size: 12px; margin-top: 5px; display: flex; align-items: center; gap: 5px;';
+            errorDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + message;
+            input.parentElement.appendChild(errorDiv);
+        }
+
+        function showSuccess(input) {
+            input.style.borderColor = '#00b894';
+            input.style.background = '#f0fff4';
+            
+            let existingError = input.parentElement.querySelector('.field-error');
+            if (existingError) existingError.remove();
+        }
+
+        function clearError(input) {
+            input.style.borderColor = '#e9ecef';
+            input.style.background = '#f8f9fa';
+            
+            let existingError = input.parentElement.querySelector('.field-error');
+            if (existingError) existingError.remove();
+        }
+
         function checkPasswordStrength() {
             const password = document.getElementById('password').value;
             const strengthBar = document.getElementById('strength-bar');
             
             let strength = 0;
-            if (password.length >= 6) strength += 1;
+            if (password.length >= RULES.MIN_PASSWORD) strength += 1;
             if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength += 1;
             if (/[0-9]/.test(password)) strength += 1;
-            if (/[!@#$%^&*]/.test(password)) strength += 1;
+            if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength += 1;
 
             strengthBar.className = 'password-strength-bar';
-            if (strength === 1) strengthBar.classList.add('fair');
-            if (strength === 2) strengthBar.classList.add('fair');
-            if (strength === 3) strengthBar.classList.add('good');
-            if (strength === 4) strengthBar.classList.add('strong');
+            strengthBar.style.width = (strength * 25) + '%';
+            
+            if (strength === 1) {
+                strengthBar.style.background = '#e74c3c';
+            } else if (strength === 2) {
+                strengthBar.style.background = '#f39c12';
+            } else if (strength === 3) {
+                strengthBar.style.background = '#3498db';
+            } else if (strength === 4) {
+                strengthBar.style.background = '#00b894';
+            }
         }
 
         function validateForm() {
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirm_password').value;
+            let isValid = true;
+            const fields = ['username', 'familyname', 'firstname', 'email', 'password', 'confirm_password'];
+            
+            fields.forEach(field => {
+                const input = document.getElementById(field);
+                if (input && !validateField(field, input.value)) {
+                    isValid = false;
+                }
+            });
 
-            if (password !== confirmPassword) {
-                alert('Mật khẩu xác nhận không khớp!');
-                return false;
+            // Check phone only if filled
+            const phone = document.getElementById('phone');
+            if (phone && phone.value.trim()) {
+                if (!validateField('phone', phone.value)) {
+                    isValid = false;
+                }
             }
 
-            if (password.length < 6) {
-                alert('Mật khẩu phải có ít nhất 6 ký tự!');
-                return false;
+            if (!isValid) {
+                // Scroll to first error
+                const firstError = document.querySelector('.field-error');
+                if (firstError) {
+                    firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
             }
 
-            return true;
+            return isValid;
         }
     </script>
             </div>
