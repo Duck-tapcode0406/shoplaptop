@@ -100,10 +100,13 @@ class LocationVerification {
                 return response.json();
             })
             .then(data => {
+                console.log('findNearbyPlaces response:', data);
                 if (data.success) {
-                    resolve(data.places);
+                    resolve(data.places || []);
                 } else {
-                    reject(new Error(data.message || 'Không tìm thấy địa điểm gần đây'));
+                    // Nếu có lỗi nhưng không phải lỗi nghiêm trọng, trả về mảng rỗng thay vì reject
+                    console.warn('findNearbyPlaces error:', data.message);
+                    resolve([]);
                 }
             })
             .catch(error => {
@@ -189,7 +192,17 @@ class LocationVerification {
                 // Hiển thị dialog xác nhận
                 this.showLocationConfirmation(nearestPlace, location);
             } else {
-                throw new Error('Không tìm thấy địa điểm gần đây');
+                // Nếu không tìm thấy địa điểm, vẫn cho phép xác nhận với tọa độ
+                console.warn('No places found, using fallback');
+                const fallbackPlace = {
+                    title: 'Vị trí hiện tại',
+                    address: `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`,
+                    gps_coordinates: {
+                        latitude: location.latitude,
+                        longitude: location.longitude
+                    }
+                };
+                this.showLocationConfirmation(fallbackPlace, location);
             }
         } catch (error) {
             // Đảm bảo cleanup overlay khi có lỗi
@@ -211,13 +224,16 @@ class LocationVerification {
     showLocationConfirmation(place, location) {
         this.hideLoading();
         
+        // Normalize place data
+        const normalizedPlace = this.normalizePlace(place);
+        
         const modal = document.createElement('div');
         modal.className = 'location-modal';
         modal.innerHTML = `
             <div class="location-modal-content">
                 <div class="location-modal-header">
                     <h3><i class="fas fa-map-marker-alt"></i> Xác Nhận Vị Trí</h3>
-                    <button class="location-modal-close" onclick="this.closest('.location-modal').remove()">
+                    <button class="location-modal-close">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -225,20 +241,20 @@ class LocationVerification {
                     <div class="location-info">
                         <p><strong>Vị trí được phát hiện:</strong></p>
                         <div class="location-details">
-                            <p><i class="fas fa-map-pin"></i> <strong>${place.title || place.tiêu_đề || 'Địa điểm'}</strong></p>
-                            <p><i class="fas fa-location-dot"></i> ${place.address || place.Địa_chỉ || 'Không có địa chỉ'}</p>
-                            ${place.phone || place.điện_thoại ? `<p><i class="fas fa-phone"></i> ${place.phone || place.điện_thoại}</p>` : ''}
-                            ${place.rating ? `<p><i class="fas fa-star"></i> Đánh giá: ${place.rating || place.đánh_giá} / 5.0</p>` : ''}
+                            <p><i class="fas fa-map-pin"></i> <strong>${normalizedPlace.title || 'Địa điểm'}</strong></p>
+                            <p><i class="fas fa-location-dot"></i> ${normalizedPlace.address || 'Không có địa chỉ'}</p>
+                            ${normalizedPlace.phone ? `<p><i class="fas fa-phone"></i> ${normalizedPlace.phone}</p>` : ''}
+                            ${normalizedPlace.rating ? `<p><i class="fas fa-star"></i> Đánh giá: ${normalizedPlace.rating} / 5.0</p>` : ''}
                         </div>
                         <div class="location-coordinates">
                             <small>Tọa độ: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}</small>
                         </div>
                     </div>
                     <div class="location-actions">
-                        <button class="btn btn-secondary" onclick="this.closest('.location-modal').remove()">
+                        <button class="btn btn-secondary location-modal-cancel">
                             <i class="fas fa-times"></i> Hủy
                         </button>
-                        <button class="btn btn-primary" onclick="window.locationVerificationInstance.confirmLocation(${JSON.stringify(place).replace(/"/g, '&quot;')}, ${JSON.stringify(location).replace(/"/g, '&quot;')})">
+                        <button class="btn btn-primary location-modal-confirm">
                             <i class="fas fa-check"></i> Xác Nhận & Cập Nhật
                         </button>
                     </div>
@@ -247,6 +263,32 @@ class LocationVerification {
         `;
         
         document.body.appendChild(modal);
+        
+        // Bind events - không dùng inline onclick
+        const instance = this; // Lưu reference để dùng trong closure
+        const closeBtn = modal.querySelector('.location-modal-close');
+        const cancelBtn = modal.querySelector('.location-modal-cancel');
+        const confirmBtn = modal.querySelector('.location-modal-confirm');
+        
+        const closeModal = () => {
+            modal.remove();
+            this.hideLoading();
+        };
+        
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        
+        // Click outside modal to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+        
+        // Confirm button - dùng closure để truyền place và location
+        confirmBtn.addEventListener('click', () => {
+            instance.confirmLocation(normalizedPlace, location);
+        });
         
         // Thêm styles nếu chưa có
         if (!document.getElementById('location-modal-styles')) {
@@ -330,16 +372,19 @@ class LocationVerification {
             this.showLoading('Đang cập nhật địa chỉ...');
 
             // Chuẩn hóa dữ liệu từ SerpAPI format - CHỈ LẤY VỊ TRÍ
-            const address = place.address || place.Địa_chỉ || '';
+            const normalizedPlace = this.normalizePlace(place);
+            const address = normalizedPlace.address || '';
+            const addressComponents = normalizedPlace.address_components || [];
+            
             const addressData = {
                 latitude: location.latitude,
                 longitude: location.longitude,
                 address: address,
-                title: place.title || place.tiêu_đề || '',
+                title: normalizedPlace.title || '',
                 // KHÔNG gửi phone - sẽ lấy từ thông tin cá nhân
-                city: this.extractCity(address),
-                district: this.extractDistrict(address),
-                ward: this.extractWard(address),
+                city: this.extractCity(address, addressComponents),
+                district: this.extractDistrict(address, addressComponents),
+                ward: this.extractWard(address, addressComponents),
                 gps_coordinates: {
                     latitude: place.gps_coordinates?.latitude || place['tọa độ GPS']?.vĩ_độ || location.latitude,
                     longitude: place.gps_coordinates?.longitude || place['tọa độ GPS']?.kinh_độ || location.longitude
@@ -366,13 +411,21 @@ class LocationVerification {
      * Điền dữ liệu vào form
      */
     fillFormWithAddress(addressData) {
+        console.log('Filling form with address data:', addressData);
+        
         // Điền address_line1 (số nhà, tên đường)
         const addressLine1Input = document.getElementById('address_line1');
-        if (addressLine1Input && addressData.address) {
-            // Lấy phần đầu của địa chỉ (số nhà, tên đường)
-            const addressParts = addressData.address.split(',');
-            if (addressParts.length > 0) {
-                addressLine1Input.value = addressParts[0].trim();
+        if (addressLine1Input) {
+            if (addressData.address_line1) {
+                addressLine1Input.value = addressData.address_line1.trim();
+            } else if (addressData.address) {
+                // Lấy phần đầu của địa chỉ (số nhà, tên đường)
+                const addressParts = addressData.address.split(',');
+                if (addressParts.length > 0) {
+                    addressLine1Input.value = addressParts[0].trim();
+                }
+            } else if (addressData.title) {
+                addressLine1Input.value = addressData.title.trim();
             }
         }
 
@@ -382,45 +435,76 @@ class LocationVerification {
             // Lấy phần còn lại của địa chỉ (nếu có)
             const addressParts = addressData.address.split(',');
             if (addressParts.length > 1) {
-                addressInput.value = addressParts.slice(1, -2).join(',').trim();
+                // Bỏ phần đầu và 2 phần cuối (ward, district, city)
+                const remainingParts = addressParts.slice(1, -2);
+                if (remainingParts.length > 0) {
+                    addressInput.value = remainingParts.join(',').trim();
+                }
             }
         }
 
         // Điền ward (phường/xã)
         const wardInput = document.getElementById('ward');
-        if (wardInput && addressData.ward) {
-            wardInput.value = addressData.ward;
+        if (wardInput) {
+            wardInput.value = (addressData.ward || '').trim();
         }
 
         // Điền district (quận/huyện)
         const districtInput = document.getElementById('district');
-        if (districtInput && addressData.district) {
-            districtInput.value = addressData.district;
+        if (districtInput) {
+            districtInput.value = (addressData.district || '').trim();
         }
 
         // Điền city (thành phố/tỉnh)
         const cityInput = document.getElementById('city');
-        if (cityInput && addressData.city) {
-            cityInput.value = addressData.city;
+        if (cityInput) {
+            cityInput.value = (addressData.city || '').trim();
         }
 
         // Scroll đến form để người dùng thấy
-        const form = document.querySelector('form');
+        const form = document.querySelector('.address-form-card') || document.querySelector('form');
         if (form) {
             form.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
+        
+        console.log('Form filled successfully');
     }
 
     /**
-     * Trích xuất thành phố từ địa chỉ
+     * Normalize place data - xử lý cả tiếng Việt và tiếng Anh
      */
-    extractCity(address) {
+    normalizePlace(place) {
+        if (!place) return {};
+        
+        return {
+            title: place.title || place.tiêu_đề || 'Địa điểm',
+            address: place.address || place.Địa_chỉ || '',
+            phone: place.phone || place.điện_thoại || '',
+            rating: place.rating || place.đánh_giá || null,
+            gps_coordinates: place.gps_coordinates || place['tọa độ GPS'] || null,
+            address_components: place.address_components || []
+        };
+    }
+
+    /**
+     * Trích xuất thành phố từ địa chỉ - cải thiện với address_components
+     */
+    extractCity(address, addressComponents = []) {
+        // Ưu tiên dùng address_components nếu có
+        if (addressComponents && addressComponents.length > 0) {
+            for (const component of addressComponents) {
+                const types = component.types || [];
+                if (types.includes('administrative_area_level_1') || types.includes('locality')) {
+                    return component.long_name || component.short_name || '';
+                }
+            }
+        }
+        
+        // Fallback: parse từ address string
         if (!address) return '';
         const parts = address.split(',');
         if (parts.length > 0) {
-            // Thành phố thường là phần cuối cùng
             let city = parts[parts.length - 1].trim();
-            // Loại bỏ mã bưu chính nếu có
             city = city.replace(/\d{5,6}/g, '').trim();
             return city;
         }
@@ -428,26 +512,46 @@ class LocationVerification {
     }
 
     /**
-     * Trích xuất quận/huyện từ địa chỉ
+     * Trích xuất quận/huyện từ địa chỉ - cải thiện với address_components
      */
-    extractDistrict(address) {
+    extractDistrict(address, addressComponents = []) {
+        // Ưu tiên dùng address_components nếu có
+        if (addressComponents && addressComponents.length > 0) {
+            for (const component of addressComponents) {
+                const types = component.types || [];
+                if (types.includes('administrative_area_level_2') || types.includes('sublocality_level_2')) {
+                    return component.long_name || component.short_name || '';
+                }
+            }
+        }
+        
+        // Fallback: parse từ address string
         if (!address) return '';
         const parts = address.split(',');
         if (parts.length > 1) {
-            // Quận/huyện thường là phần thứ 2 từ cuối
             return parts[parts.length - 2].trim();
         }
         return '';
     }
 
     /**
-     * Trích xuất phường/xã từ địa chỉ
+     * Trích xuất phường/xã từ địa chỉ - cải thiện với address_components
      */
-    extractWard(address) {
+    extractWard(address, addressComponents = []) {
+        // Ưu tiên dùng address_components nếu có
+        if (addressComponents && addressComponents.length > 0) {
+            for (const component of addressComponents) {
+                const types = component.types || [];
+                if (types.includes('sublocality') || types.includes('sublocality_level_1')) {
+                    return component.long_name || component.short_name || '';
+                }
+            }
+        }
+        
+        // Fallback: parse từ address string
         if (!address) return '';
         const parts = address.split(',');
         if (parts.length > 2) {
-            // Phường/xã thường là phần thứ 3 từ cuối
             return parts[parts.length - 3].trim();
         }
         return '';

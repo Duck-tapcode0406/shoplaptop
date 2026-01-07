@@ -8,9 +8,22 @@ require_once __DIR__ . '/../includes/session.php';
 require_once __DIR__ . '/../includes/db.php';
 header('Content-Type: application/json');
 
-// Load config nếu có
+// Load config - prefer api/config.php, fallback to includes/config.php
 if (file_exists(__DIR__ . '/config.php')) {
     require_once __DIR__ . '/config.php';
+} elseif (file_exists(__DIR__ . '/../includes/config.php')) {
+    require_once __DIR__ . '/../includes/config.php';
+}
+
+// Lấy SERPAPI_KEY từ env hoặc constant
+$serpApiKey = getenv('SERPAPI_KEY') ?: (defined('SERPAPI_KEY') ? SERPAPI_KEY : '');
+
+// Kiểm tra key có hợp lệ không
+if (empty($serpApiKey) || $serpApiKey === 'YOUR_SERPAPI_KEY_HERE' || $serpApiKey === 'cdabba37434cb5ff0d99dc4ea1addfcf137eef3fcbb6ee1c0e705f7ba2dd3ab6') {
+    // Log lỗi nếu DEBUG_MODE
+    if (defined('DEBUG_MODE') && DEBUG_MODE) {
+        error_log('SERPAPI_KEY not configured or using placeholder');
+    }
 }
 
 // Kiểm tra đăng nhập
@@ -38,11 +51,37 @@ $action = $input['action'];
 try {
     switch ($action) {
         case 'find_nearby':
-            // Tìm địa điểm gần nhất dựa trên tọa độ GPS
+            // Validate input
+            if (!isset($input['latitude']) || !isset($input['longitude'])) {
+                throw new Exception('Thiếu tọa độ GPS (latitude, longitude)');
+            }
+            
             $latitude = floatval($input['latitude']);
             $longitude = floatval($input['longitude']);
+            
+            // Validate coordinates
+            if (!is_numeric($latitude) || !is_numeric($longitude)) {
+                throw new Exception('Tọa độ GPS không hợp lệ');
+            }
+            
+            if ($latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180) {
+                throw new Exception('Tọa độ GPS nằm ngoài phạm vi hợp lệ');
+            }
+            
             $query = isset($input['query']) ? $input['query'] : 'Coffee';
             $ll = isset($input['ll']) ? $input['ll'] : "@{$latitude},{$longitude},14z";
+            
+            // Kiểm tra SERPAPI_KEY trước khi gọi
+            global $serpApiKey;
+            if (empty($serpApiKey) || $serpApiKey === 'YOUR_SERPAPI_KEY_HERE' || $serpApiKey === 'cdabba37434cb5ff0d99dc4ea1addfcf137eef3fcbb6ee1c0e705f7ba2dd3ab6') {
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'SERPAPI_KEY chưa được cấu hình. Vui lòng tạo file api/config.php và thêm SERPAPI_KEY.',
+                    'places' => []
+                ]);
+                exit();
+            }
             
             // Gọi SerpAPI để tìm địa điểm gần nhất
             $places = findNearbyPlaces($latitude, $longitude, $query, $ll);
@@ -192,8 +231,13 @@ try {
  *   - reviews: số lượng đánh giá
  */
 function findNearbyPlaces($latitude, $longitude, $query = 'Coffee', $ll = '') {
+    global $serpApiKey;
+    
     // Lấy cấu hình từ config
-    $serpApiKey = defined('SERPAPI_KEY') ? SERPAPI_KEY : '';
+    if (empty($serpApiKey)) {
+        $serpApiKey = getenv('SERPAPI_KEY') ?: (defined('SERPAPI_KEY') ? SERPAPI_KEY : '');
+    }
+    
     $endpoint = defined('SERPAPI_ENDPOINT') ? SERPAPI_ENDPOINT : 'https://serpapi.com/search.json';
     $defaultQuery = defined('DEFAULT_SEARCH_QUERY') ? DEFAULT_SEARCH_QUERY : 'Coffee';
     $language = defined('SERPAPI_LANGUAGE') ? SERPAPI_LANGUAGE : 'vi';
@@ -202,9 +246,20 @@ function findNearbyPlaces($latitude, $longitude, $query = 'Coffee', $ll = '') {
     
     $query = $query ?: $defaultQuery;
     
-    // Nếu không có API key, sử dụng dữ liệu mẫu
-    if (empty($serpApiKey) || $serpApiKey === 'YOUR_SERPAPI_KEY_HERE') {
-        return getSamplePlaces($latitude, $longitude);
+    // Validate coordinates
+    if (!is_numeric($latitude) || !is_numeric($longitude)) {
+        error_log('Invalid coordinates: ' . $latitude . ', ' . $longitude);
+        return [];
+    }
+    
+    // Nếu không có API key hợp lệ, trả về lỗi thay vì dữ liệu mẫu
+    if (empty($serpApiKey) || $serpApiKey === 'YOUR_SERPAPI_KEY_HERE' || $serpApiKey === 'cdabba37434cb5ff0d99dc4ea1addfcf137eef3fcbb6ee1c0e705f7ba2dd3ab6') {
+        error_log('SERPAPI_KEY not configured or using placeholder');
+        if (defined('DEBUG_MODE') && DEBUG_MODE) {
+            // Chỉ trả về sample data trong DEBUG_MODE
+            return getSamplePlaces($latitude, $longitude);
+        }
+        return [];
     }
     
     // Tạo tham số ll nếu chưa có
@@ -246,8 +301,11 @@ function findNearbyPlaces($latitude, $longitude, $query = 'Coffee', $ll = '') {
         
         // Kiểm tra lỗi từ SerpAPI
         if (isset($data['error'])) {
-            error_log('SerpAPI Error: ' . $data['error']);
-            return getSamplePlaces($latitude, $longitude);
+            error_log('SerpAPI Error: ' . json_encode($data['error']));
+            if (defined('DEBUG_MODE') && DEBUG_MODE) {
+                return getSamplePlaces($latitude, $longitude);
+            }
+            return [];
         }
         
         if (isset($data['local_results']) && is_array($data['local_results']) && count($data['local_results']) > 0) {
@@ -259,11 +317,14 @@ function findNearbyPlaces($latitude, $longitude, $query = 'Coffee', $ll = '') {
             return $places;
         }
     } else {
-        error_log("SerpAPI HTTP Error: {$httpCode}, cURL Error: {$curlError}");
+        error_log("SerpAPI HTTP Error: {$httpCode}, cURL Error: {$curlError}, Response: " . substr($response, 0, 200));
+        if (defined('DEBUG_MODE') && DEBUG_MODE) {
+            return getSamplePlaces($latitude, $longitude);
+        }
     }
     
-    // Fallback: sử dụng dữ liệu mẫu
-    return getSamplePlaces($latitude, $longitude);
+    // Không fallback mặc định - trả về mảng rỗng
+    return [];
 }
 
 /**

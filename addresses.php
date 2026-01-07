@@ -647,29 +647,45 @@ if ($addresses_table_exists) {
         // Xác nhận địa chỉ đã chọn
         document.getElementById('confirm-map-address-btn')?.addEventListener('click', function() {
             if (selectedAddress) {
+                console.log('Selected address:', selectedAddress);
+                
                 // Điền form với địa chỉ đã chọn
-                if (selectedAddress.address_line1) {
-                    document.getElementById('address_line1').value = selectedAddress.address_line1.trim();
+                const addressLine1Input = document.getElementById('address_line1');
+                const addressInput = document.getElementById('address');
+                const wardInput = document.getElementById('ward');
+                const districtInput = document.getElementById('district');
+                const cityInput = document.getElementById('city');
+                const postalCodeInput = document.getElementById('postal_code');
+                
+                if (addressLine1Input) {
+                    addressLine1Input.value = (selectedAddress.address_line1 || '').trim();
                 }
-                if (selectedAddress.address) {
-                    document.getElementById('address').value = selectedAddress.address.trim();
+                if (addressInput) {
+                    addressInput.value = (selectedAddress.address || '').trim();
                 }
-                if (selectedAddress.ward) {
-                    document.getElementById('ward').value = selectedAddress.ward.trim();
+                if (wardInput) {
+                    wardInput.value = (selectedAddress.ward || '').trim();
                 }
-                if (selectedAddress.district) {
-                    document.getElementById('district').value = selectedAddress.district.trim();
+                if (districtInput) {
+                    districtInput.value = (selectedAddress.district || '').trim();
                 }
-                if (selectedAddress.city) {
-                    document.getElementById('city').value = selectedAddress.city.trim();
+                if (cityInput) {
+                    cityInput.value = (selectedAddress.city || '').trim();
                 }
-                if (selectedAddress.postal_code) {
-                    document.getElementById('postal_code').value = selectedAddress.postal_code.trim();
+                if (postalCodeInput) {
+                    postalCodeInput.value = (selectedAddress.postal_code || '').trim();
                 }
 
                 // Đóng modal
                 document.getElementById('map-picker-modal').style.display = 'none';
-                showSuccess('Thành công', 'Đã chọn địa chỉ trên bản đồ!');
+                
+                // Scroll đến form
+                const form = document.querySelector('.address-form-card') || document.querySelector('form');
+                if (form) {
+                    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                
+                showSuccess('Thành công', 'Đã chọn địa chỉ trên bản đồ và tự động điền vào form!');
             } else {
                 showWarning('Cảnh báo', 'Vui lòng chọn một địa chỉ trên bản đồ hoặc tìm kiếm địa chỉ');
             }
@@ -738,9 +754,26 @@ if ($addresses_table_exists) {
             }
         });
 
+        // Khởi tạo LocationVerification instance và gán vào window
+        const locationVerification = new LocationVerification({
+            apiEndpoint: 'api/update_location.php',
+            onSuccess: function(data) {
+                console.log('Location verification success:', data);
+            },
+            onError: function(message) {
+                console.error('Location verification error:', message);
+            },
+            onLocationFound: function(place, location) {
+                console.log('Location found:', place, location);
+            }
+        });
+        
+        // Gán vào window để có thể truy cập từ modal
+        window.locationVerificationInstance = locationVerification;
+        
         // Xử lý sự kiện click nút xác nhận vị trí
         document.getElementById('verify-location-btn')?.addEventListener('click', function() {
-            window.locationVerificationInstance.verifyAndUpdate();
+            locationVerification.verifyAndUpdate();
         });
 
         function editAddress(address) {
