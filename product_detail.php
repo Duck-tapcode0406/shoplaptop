@@ -3,6 +3,18 @@ require_once 'includes/session.php';
 require_once 'includes/db.php';
 require_once 'includes/csrf.php';
 
+// Check if user is admin (for view-only mode)
+$is_admin_view_mode = false;
+if (isset($_SESSION['user_id'])) {
+    $user_id = $_SESSION['user_id'];
+    $admin_check = $conn->prepare("SELECT is_admin FROM user WHERE id = ?");
+    $admin_check->bind_param('i', $user_id);
+    $admin_check->execute();
+    $admin_result = $admin_check->get_result();
+    $admin_data = $admin_result ? $admin_result->fetch_assoc() : null;
+    $is_admin_view_mode = ($admin_data && $admin_data['is_admin'] == 1);
+}
+
 $product_id = isset($_GET['id']) ? intval($_GET['id']) : null;
 
 if (!$product_id) {
@@ -14,11 +26,9 @@ if (!$product_id) {
 $query = "
 SELECT 
     p.id, p.name, p.description,
-    pr.price, pr.temporary_price, pr.discount_start, pr.discount_end,
-    img.path
+    pr.price, pr.temporary_price, pr.discount_start, pr.discount_end
 FROM product p
 LEFT JOIN price pr ON p.id = pr.product_id
-LEFT JOIN image img ON p.id = img.product_id AND img.sort_order = 1
 WHERE p.id = ?
 LIMIT 1
 ";
@@ -38,6 +48,39 @@ if ($result->num_rows === 0) {
 }
 
 $product = $result->fetch_assoc();
+
+// Fetch all images for this product
+$images_query = "SELECT id, path, sort_order FROM image WHERE product_id = ? ORDER BY sort_order ASC";
+$images_stmt = $conn->prepare($images_query);
+$images_stmt->bind_param('i', $product_id);
+$images_stmt->execute();
+$images_result = $images_stmt->get_result();
+$product_images = [];
+
+while ($img = $images_result->fetch_assoc()) {
+    $rawPath = trim($img['path']);
+    if (!empty($rawPath)) {
+        if (strpos($rawPath, 'uploads/') === 0) {
+            $imagePath = 'admin/' . $rawPath;
+        } else {
+            $imagePath = 'admin/uploads/' . $rawPath;
+        }
+        $product_images[] = [
+            'id' => $img['id'],
+            'path' => $imagePath,
+            'sort_order' => $img['sort_order']
+        ];
+    }
+}
+
+// If no images, use default
+if (empty($product_images)) {
+    $product_images[] = [
+        'id' => 0,
+        'path' => 'images/no-image.png',
+        'sort_order' => 0
+    ];
+}
 
 // Check if on sale
 $current_time = date('Y-m-d H:i:s');
@@ -175,13 +218,232 @@ if (isset($_SESSION['user_id'])) {
             box-shadow: var(--shadow-sm);
         }
 
+        .main-image-container {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            margin-bottom: var(--space-lg);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            background: var(--bg-primary);
+            cursor: zoom-in;
+        }
+
         .main-image {
             width: 100%;
-            height: 400px;
+            height: 100%;
+            object-fit: contain;
+            transition: transform 0.3s ease;
+        }
+
+        .main-image-container:hover .main-image {
+            transform: scale(1.05);
+        }
+
+        .image-navigation {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 18px;
+            color: var(--text-primary);
+            transition: all 0.3s;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .image-navigation:hover {
+            background: white;
+            transform: translateY(-50%) scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        .image-navigation.prev {
+            left: 15px;
+        }
+
+        .image-navigation.next {
+            right: 15px;
+        }
+
+        .image-navigation:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .image-counter {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: var(--fs-small);
+            z-index: 10;
+        }
+
+        .thumbnail-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+            background: var(--bg-primary);
+            border-radius: var(--radius-md);
+        }
+
+        .thumbnail-item {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        .thumbnail-item:hover {
+            border-color: var(--primary);
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(108, 92, 231, 0.3);
+        }
+
+        .thumbnail-item.active {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.3);
+        }
+
+        .thumbnail-item img {
+            width: 100%;
+            height: 100%;
             object-fit: cover;
-            border-radius: var(--radius-lg);
-            margin-bottom: var(--space-lg);
-            cursor: zoom-in;
+        }
+
+        .thumbnail-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .thumbnail-item:hover .thumbnail-overlay {
+            opacity: 1;
+        }
+
+        .thumbnail-overlay i {
+            color: white;
+            font-size: 24px;
+        }
+
+        /* Lightbox Modal */
+        .lightbox-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .lightbox-modal.active {
+            display: flex;
+        }
+
+        .lightbox-content {
+            position: relative;
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .lightbox-image {
+            max-width: 100%;
+            max-height: 90vh;
+            object-fit: contain;
+        }
+
+        .lightbox-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .lightbox-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: rotate(90deg);
+        }
+
+        .lightbox-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .lightbox-nav:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .lightbox-nav.prev {
+            left: 20px;
+        }
+
+        .lightbox-nav.next {
+            right: 20px;
+        }
+
+        .lightbox-counter {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: var(--fs-large);
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-radius: 20px;
         }
 
         .product-info-section {
@@ -493,24 +755,253 @@ if (isset($_SESSION['user_id'])) {
 
         .review-actions {
             display: flex;
-            gap: var(--space-md);
+            gap: var(--space-sm);
+            flex-wrap: wrap;
+            padding-top: var(--space-md);
+            border-top: 1px solid var(--border-color);
+            margin-top: var(--space-md);
         }
 
-        .review-like-btn {
+        .review-action-btn {
             background: none;
             border: 1px solid var(--border-color);
-            padding: var(--space-xs) var(--space-md);
+            padding: 8px 14px;
             border-radius: var(--radius-md);
             cursor: pointer;
             color: var(--text-secondary);
             font-size: var(--fs-small);
             transition: all var(--transition-fast);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
         }
 
-        .review-like-btn:hover {
+        .review-action-btn:hover {
             background: var(--bg-primary);
-            border-color: #E74C3C;
-            color: #E74C3C;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-xs);
+        }
+
+        .review-action-btn i {
+            font-size: 14px;
+        }
+
+        /* Like Button */
+        .review-like-btn,
+        .like-btn {
+            border-color: #e0e0e0;
+        }
+
+        .review-like-btn:hover,
+        .like-btn:hover {
+            border-color: #00b894;
+            color: #00b894;
+            background: #e8f8f5;
+        }
+
+        .review-like-btn.active,
+        .like-btn.active {
+            background: linear-gradient(135deg, #00b894, #00cec9);
+            border-color: #00b894;
+            color: white;
+        }
+
+        .review-like-btn.active:hover,
+        .like-btn.active:hover {
+            background: linear-gradient(135deg, #00a085, #00b894);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 184, 148, 0.3);
+        }
+
+        /* Dislike Button */
+        .dislike-btn {
+            border-color: #e0e0e0;
+        }
+
+        .dislike-btn:hover {
+            border-color: #e74c3c;
+            color: #e74c3c;
+            background: #fdf2f2;
+        }
+
+        .dislike-btn.active {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            border-color: #e74c3c;
+            color: white;
+        }
+
+        .dislike-btn.active:hover {
+            background: linear-gradient(135deg, #c0392b, #a93226);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+        }
+
+        /* Reply Button */
+        .reply-btn {
+            border-color: #3498db;
+            color: #3498db;
+        }
+
+        .reply-btn:hover {
+            background: #e3f2fd;
+            border-color: #2980b9;
+            color: #2980b9;
+        }
+
+        /* Count badges */
+        .like-count,
+        .dislike-count {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .review-like-btn.active .like-count,
+        .like-btn.active .like-count {
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+        }
+
+        .dislike-btn.active .dislike-count {
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+        }
+
+        /* Reply Form */
+        .reply-form-container {
+            margin-top: var(--space-lg);
+            padding: var(--space-lg);
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .reply-form textarea {
+            width: 100%;
+            padding: var(--space-md);
+            border: 2px solid var(--border-color);
+            border-radius: var(--radius-md);
+            font-size: var(--fs-small);
+            font-family: var(--font-family);
+            resize: vertical;
+            min-height: 80px;
+            transition: border-color var(--transition-fast);
+        }
+
+        .reply-form textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+        }
+
+        .reply-form-actions {
+            display: flex;
+            gap: var(--space-sm);
+            margin-top: var(--space-md);
+        }
+
+        .reply-form-actions button {
+            padding: 10px 18px;
+            border-radius: var(--radius-md);
+            font-size: var(--fs-small);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .cancel-reply-btn {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        .cancel-reply-btn:hover {
+            background: #e0e0e0;
+            color: var(--text-primary);
+        }
+
+        /* Replies List */
+        .replies-list {
+            margin-top: var(--space-lg);
+            padding-left: var(--space-xl);
+            border-left: 3px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        .reply-item {
+            background: linear-gradient(135deg, #ffffff, #f8f9fa);
+            padding: var(--space-md);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-xs);
+        }
+
+        .reply-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-sm);
+        }
+
+        .reply-author-details {
+            flex: 1;
+        }
+
+        .reply-author {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: var(--fs-small);
+            margin-bottom: 2px;
+        }
+
+        .reply-date {
+            font-size: 11px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .reply-content {
+            color: var(--text-primary);
+            font-size: var(--fs-small);
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        .delete-reply-btn {
+            padding: 4px 8px;
+            font-size: 11px;
+            background: #fee;
+            color: #e74c3c;
+            border: 1px solid #fcc;
+        }
+
+        .delete-reply-btn:hover {
+            background: #fcc;
+            border-color: #e74c3c;
         }
 
         .no-reviews {
@@ -554,6 +1045,44 @@ if (isset($_SESSION['user_id'])) {
                 gap: var(--space-lg);
             }
 
+            .main-image-container {
+                height: 350px;
+            }
+
+            .image-navigation {
+                width: 35px;
+                height: 35px;
+                font-size: 14px;
+            }
+
+            .image-navigation.prev {
+                left: 10px;
+            }
+
+            .image-navigation.next {
+                right: 10px;
+            }
+
+            .thumbnail-gallery {
+                grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+                gap: 8px;
+                max-height: 300px;
+            }
+
+            .lightbox-nav {
+                width: 45px;
+                height: 45px;
+                font-size: 18px;
+            }
+
+            .lightbox-nav.prev {
+                left: 10px;
+            }
+
+            .lightbox-nav.next {
+                right: 10px;
+            }
+
             .main-image {
                 height: 300px;
             }
@@ -567,11 +1096,35 @@ if (isset($_SESSION['user_id'])) {
                 flex-direction: column;
                 gap: var(--space-sm);
             }
+
+            .review-actions {
+                flex-wrap: wrap;
+                gap: var(--space-xs);
+            }
+
+            .review-action-btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+
+            .reply-form-container {
+                padding: var(--space-md);
+            }
+
+            .replies-list {
+                padding-left: var(--space-md);
+            }
         }
     </style>
 </head>
 <body>
     <div class="product-detail-container">
+        <!-- Back Button -->
+        <button onclick="window.history.back()" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+            Quay lại
+        </button>
+        
         <!-- Breadcrumb -->
         <div class="breadcrumb-nav">
             <a href="index.php"><i class="fas fa-home"></i> Trang Chủ</a>
@@ -585,19 +1138,66 @@ if (isset($_SESSION['user_id'])) {
         <div class="product-grid">
             <!-- Product Gallery -->
             <div class="product-gallery">
-                <?php 
-                $rawPath = isset($product['path']) ? trim($product['path']) : '';
-                if (!empty($rawPath)) {
-                    if (strpos($rawPath, 'uploads/') === 0) {
-                        $imagePath = 'admin/' . $rawPath;
-                    } else {
-                        $imagePath = 'admin/uploads/' . $rawPath;
-                    }
-                } else {
-                    $imagePath = 'images/no-image.png';
-                }
-                ?>
-                <img src="<?php echo htmlspecialchars($imagePath); ?>" alt="<?php echo htmlspecialchars($product['name']); ?>" class="main-image" onerror="this.onerror=null; this.src='images/no-image.png';">
+                <!-- Main Image Container -->
+                <div class="main-image-container" id="mainImageContainer">
+                    <img src="<?php echo htmlspecialchars($product_images[0]['path']); ?>" 
+                         alt="<?php echo htmlspecialchars($product['name']); ?>" 
+                         class="main-image" 
+                         id="mainImage"
+                         onerror="this.onerror=null; this.src='images/no-image.png';">
+                    
+                    <!-- Navigation Buttons -->
+                    <?php if (count($product_images) > 1): ?>
+                    <button class="image-navigation prev" id="prevImage" onclick="changeImage(-1)">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button class="image-navigation next" id="nextImage" onclick="changeImage(1)">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <div class="image-counter" id="imageCounter">
+                        1 / <?php echo count($product_images); ?>
+                    </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Thumbnail Gallery -->
+                <?php if (count($product_images) > 1): ?>
+                <div class="thumbnail-gallery" id="thumbnailGallery">
+                    <?php foreach ($product_images as $index => $img): ?>
+                    <div class="thumbnail-item <?php echo $index === 0 ? 'active' : ''; ?>" 
+                         data-index="<?php echo $index; ?>"
+                         onclick="selectImage(<?php echo $index; ?>)">
+                        <img src="<?php echo htmlspecialchars($img['path']); ?>" 
+                             alt="<?php echo htmlspecialchars($product['name']); ?>"
+                             onerror="this.onerror=null; this.src='images/no-image.png';">
+                        <div class="thumbnail-overlay">
+                            <i class="fas fa-search-plus"></i>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Lightbox Modal -->
+            <div class="lightbox-modal" id="lightboxModal">
+                <button class="lightbox-close" onclick="closeLightbox()">
+                    <i class="fas fa-times"></i>
+                </button>
+                <?php if (count($product_images) > 1): ?>
+                <button class="lightbox-nav prev" onclick="changeLightboxImage(-1)">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button class="lightbox-nav next" onclick="changeLightboxImage(1)">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+                <div class="lightbox-counter" id="lightboxCounter">
+                    1 / <?php echo count($product_images); ?>
+                </div>
+                <?php endif; ?>
+                <div class="lightbox-content">
+                    <img src="" alt="<?php echo htmlspecialchars($product['name']); ?>" class="lightbox-image" id="lightboxImage">
+                </div>
             </div>
 
             <!-- Product Information -->
@@ -641,7 +1241,8 @@ if (isset($_SESSION['user_id'])) {
                     <span>Còn hàng - Giao hàng nhanh 24-48 giờ</span>
                 </div>
 
-                <!-- Add to Cart Form -->
+                <!-- Add to Cart Form (Hidden for admin view mode) -->
+                <?php if (!$is_admin_view_mode): ?>
                 <form method="POST" action="add_to_cart.php" style="margin-bottom: var(--space-lg);">
                     <?php echo getCSRFTokenField(); ?>
                     <input type="hidden" name="product_id" value="<?php echo $product['id']; ?>">
@@ -661,6 +1262,15 @@ if (isset($_SESSION['user_id'])) {
                         <i class="fas fa-shopping-cart"></i> Thêm vào Giỏ Hàng
                     </button>
                 </form>
+                <?php else: ?>
+                <div style="padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: var(--space-lg); text-align: center;">
+                    <i class="fas fa-info-circle" style="color: #856404; font-size: 24px; margin-bottom: 10px;"></i>
+                    <p style="color: #856404; margin: 0; font-weight: 500;">Chế độ xem Admin - Không thể mua hàng</p>
+                    <a href="admin/index.php" class="btn btn-secondary" style="margin-top: 15px;">
+                        <i class="fas fa-tachometer-alt"></i> Quay về trang Admin
+                    </a>
+                </div>
+                <?php endif; ?>
 
                 <button class="btn btn-secondary btn-lg" id="wishlist-btn" onclick="toggleWishlist(<?php echo $product_id; ?>)" style="width: 100%; margin-bottom: var(--space-lg);">
                     <i class="<?php echo $in_wishlist ? 'fas' : 'far'; ?> fa-heart"></i> 
@@ -880,10 +1490,43 @@ if (isset($_SESSION['user_id'])) {
                                     <p><?php echo nl2br(htmlspecialchars($review['content'])); ?></p>
                                 </div>
                                 <div class="review-actions">
-                                    <button class="review-like-btn" data-review-id="<?php echo $review['id']; ?>">
-                                        <i class="far fa-thumbs-up"></i> Hữu ích
+                                    <button class="review-action-btn like-btn" data-review-id="<?php echo $review['id']; ?>" title="Hữu ích">
+                                        <i class="far fa-thumbs-up"></i>
+                                        <span class="like-count">0</span>
                                     </button>
+                                    <button class="review-action-btn dislike-btn" data-review-id="<?php echo $review['id']; ?>" title="Không hữu ích">
+                                        <i class="far fa-thumbs-down"></i>
+                                        <span class="dislike-count">0</span>
+                                    </button>
+                                    <?php if (isset($_SESSION['user_id'])): ?>
+                                    <button class="review-action-btn reply-btn" data-review-id="<?php echo $review['id']; ?>" title="Trả lời">
+                                        <i class="far fa-comment"></i>
+                                        Trả lời
+                                    </button>
+                                    <?php endif; ?>
                                 </div>
+                                
+                                <!-- Reply Form (Hidden by default) -->
+                                <?php if (isset($_SESSION['user_id'])): ?>
+                                <div class="reply-form-container" id="reply-form-<?php echo $review['id']; ?>" style="display: none;">
+                                    <form class="reply-form" data-review-id="<?php echo $review['id']; ?>">
+                                        <textarea class="reply-content" rows="3" placeholder="Viết câu trả lời của bạn..." required minlength="5"></textarea>
+                                        <div class="reply-form-actions">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="fas fa-paper-plane"></i> Gửi trả lời
+                                            </button>
+                                            <button type="button" class="cancel-reply-btn">
+                                                Hủy
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                                
+                                <!-- Replies List -->
+                                <div class="replies-list" id="replies-<?php echo $review['id']; ?>" data-review-id="<?php echo $review['id']; ?>">
+                                    <!-- Replies will be loaded here dynamically -->
+                                </div>
+                                <?php endif; ?>
                             </div>
                         <?php endforeach; ?>
                     <?php else: ?>
@@ -1023,6 +1666,298 @@ if (isset($_SESSION['user_id'])) {
                 });
             });
         }
+
+        // Like/Dislike functionality
+        document.querySelectorAll('.like-btn, .dislike-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const reviewId = this.dataset.reviewId;
+                const action = this.classList.contains('like-btn') ? 'like' : 'dislike';
+                const isActive = this.classList.contains('active');
+                
+                // Toggle active state
+                if (isActive) {
+                    this.classList.remove('active');
+                    const icon = this.querySelector('i');
+                    if (icon) {
+                        icon.classList.remove('fa-solid');
+                        icon.classList.add('fa-regular');
+                    }
+                } else {
+                    this.classList.add('active');
+                    const icon = this.querySelector('i');
+                    if (icon) {
+                        icon.classList.remove('fa-regular');
+                        icon.classList.add('fa-solid');
+                    }
+                    
+                    // Remove active from opposite button
+                    const oppositeBtn = this.parentElement.querySelector(action === 'like' ? '.dislike-btn' : '.like-btn');
+                    if (oppositeBtn && oppositeBtn.classList.contains('active')) {
+                        oppositeBtn.classList.remove('active');
+                        const oppositeIcon = oppositeBtn.querySelector('i');
+                        if (oppositeIcon) {
+                            oppositeIcon.classList.remove('fa-solid');
+                            oppositeIcon.classList.add('fa-regular');
+                        }
+                    }
+                }
+                
+                // Update count (visual feedback - bạn có thể tích hợp API thật sau)
+                const countSpan = this.querySelector('.like-count, .dislike-count');
+                if (countSpan) {
+                    let count = parseInt(countSpan.textContent) || 0;
+                    count = isActive ? Math.max(0, count - 1) : count + 1;
+                    countSpan.textContent = count;
+                }
+                
+                // TODO: Gửi AJAX request đến API để lưu like/dislike
+                // fetch('api/review_like.php', {
+                //     method: 'POST',
+                //     body: JSON.stringify({ review_id: reviewId, action: action, is_active: !isActive })
+                // });
+            });
+        });
+
+        // Reply button functionality
+        document.querySelectorAll('.reply-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const reviewId = this.dataset.reviewId;
+                const replyForm = document.getElementById('reply-form-' + reviewId);
+                
+                if (replyForm) {
+                    const isVisible = replyForm.style.display !== 'none';
+                    replyForm.style.display = isVisible ? 'none' : 'block';
+                    
+                    if (!isVisible) {
+                        replyForm.querySelector('textarea').focus();
+                    }
+                }
+            });
+        });
+
+        // Cancel reply button
+        document.querySelectorAll('.cancel-reply-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const formContainer = this.closest('.reply-form-container');
+                if (formContainer) {
+                    formContainer.style.display = 'none';
+                    formContainer.querySelector('textarea').value = '';
+                }
+            });
+        });
+
+        // Reply form submission
+        document.querySelectorAll('.reply-form').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const reviewId = this.dataset.reviewId;
+                const content = this.querySelector('.reply-content').value.trim();
+                
+                if (content.length < 5) {
+                    alert('Nội dung trả lời phải có ít nhất 5 ký tự.');
+                    return;
+                }
+                
+                // TODO: Gửi AJAX request đến API để lưu reply
+                // fetch('api/add_reply.php', {
+                //     method: 'POST',
+                //     headers: { 'Content-Type': 'application/json' },
+                //     body: JSON.stringify({
+                //         review_id: reviewId,
+                //         content: content
+                //     })
+                // })
+                // .then(response => response.json())
+                // .then(data => {
+                //     if (data.success) {
+                //         // Add reply to replies list
+                //         addReplyToDOM(reviewId, data.reply);
+                //         form.querySelector('.reply-content').value = '';
+                //         form.closest('.reply-form-container').style.display = 'none';
+                //     } else {
+                //         alert(data.message);
+                //     }
+                // });
+                
+                // Temporary: Show success message
+                alert('Tính năng trả lời đang được phát triển. Reply sẽ được lưu vào database sau khi tích hợp API.');
+            });
+        });
+
+        // Image Gallery Functionality
+        const productImages = <?php echo json_encode(array_column($product_images, 'path')); ?>;
+        let currentImageIndex = 0;
+
+        function changeImage(direction) {
+            if (productImages.length <= 1) return;
+            
+            currentImageIndex += direction;
+            
+            if (currentImageIndex < 0) {
+                currentImageIndex = productImages.length - 1;
+            } else if (currentImageIndex >= productImages.length) {
+                currentImageIndex = 0;
+            }
+            
+            updateMainImage();
+            updateThumbnails();
+            updateNavigationButtons();
+        }
+
+        function selectImage(index) {
+            if (index < 0 || index >= productImages.length) return;
+            currentImageIndex = index;
+            updateMainImage();
+            updateThumbnails();
+            updateNavigationButtons();
+        }
+
+        function updateMainImage() {
+            const mainImage = document.getElementById('mainImage');
+            if (mainImage && productImages[currentImageIndex]) {
+                mainImage.src = productImages[currentImageIndex];
+                mainImage.onerror = function() {
+                    this.src = 'images/no-image.png';
+                };
+            }
+            
+            // Update counter
+            const counter = document.getElementById('imageCounter');
+            if (counter) {
+                counter.textContent = `${currentImageIndex + 1} / ${productImages.length}`;
+            }
+        }
+
+        function updateThumbnails() {
+            document.querySelectorAll('.thumbnail-item').forEach((item, index) => {
+                if (index === currentImageIndex) {
+                    item.classList.add('active');
+                    // Scroll thumbnail into view
+                    item.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }
+
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prevImage');
+            const nextBtn = document.getElementById('nextImage');
+            
+            if (productImages.length <= 1) {
+                if (prevBtn) prevBtn.style.display = 'none';
+                if (nextBtn) nextBtn.style.display = 'none';
+            } else {
+                if (prevBtn) prevBtn.style.display = 'flex';
+                if (nextBtn) nextBtn.style.display = 'flex';
+            }
+        }
+
+        // Lightbox functionality
+        function openLightbox(index) {
+            if (index !== undefined) {
+                currentImageIndex = index;
+            }
+            
+            const lightbox = document.getElementById('lightboxModal');
+            const lightboxImage = document.getElementById('lightboxImage');
+            const lightboxCounter = document.getElementById('lightboxCounter');
+            
+            if (lightbox && lightboxImage) {
+                lightboxImage.src = productImages[currentImageIndex];
+                lightboxImage.onerror = function() {
+                    this.src = 'images/no-image.png';
+                };
+                
+                if (lightboxCounter) {
+                    lightboxCounter.textContent = `${currentImageIndex + 1} / ${productImages.length}`;
+                }
+                
+                lightbox.classList.add('active');
+                document.body.style.overflow = 'hidden';
+                
+                updateLightboxNavigation();
+            }
+        }
+
+        function closeLightbox() {
+            const lightbox = document.getElementById('lightboxModal');
+            if (lightbox) {
+                lightbox.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        function changeLightboxImage(direction) {
+            changeImage(direction);
+            
+            const lightboxImage = document.getElementById('lightboxImage');
+            const lightboxCounter = document.getElementById('lightboxCounter');
+            
+            if (lightboxImage) {
+                lightboxImage.src = productImages[currentImageIndex];
+                lightboxImage.onerror = function() {
+                    this.src = 'images/no-image.png';
+                };
+            }
+            
+            if (lightboxCounter) {
+                lightboxCounter.textContent = `${currentImageIndex + 1} / ${productImages.length}`;
+            }
+            
+            updateLightboxNavigation();
+        }
+
+        function updateLightboxNavigation() {
+            // Navigation buttons are always visible in lightbox for multiple images
+        }
+
+        // Click main image to open lightbox
+        document.addEventListener('DOMContentLoaded', function() {
+            const mainImageContainer = document.getElementById('mainImageContainer');
+            if (mainImageContainer) {
+                mainImageContainer.addEventListener('click', function() {
+                    if (productImages.length > 0) {
+                        openLightbox();
+                    }
+                });
+            }
+
+            // Click thumbnail to open lightbox
+            document.querySelectorAll('.thumbnail-item').forEach((item, index) => {
+                item.addEventListener('dblclick', function() {
+                    openLightbox(index);
+                });
+            });
+
+            // Keyboard navigation
+            document.addEventListener('keydown', function(e) {
+                const lightbox = document.getElementById('lightboxModal');
+                if (!lightbox || !lightbox.classList.contains('active')) return;
+
+                if (e.key === 'Escape') {
+                    closeLightbox();
+                } else if (e.key === 'ArrowLeft') {
+                    changeLightboxImage(-1);
+                } else if (e.key === 'ArrowRight') {
+                    changeLightboxImage(1);
+                }
+            });
+
+            // Close lightbox when clicking outside image
+            const lightboxModal = document.getElementById('lightboxModal');
+            if (lightboxModal) {
+                lightboxModal.addEventListener('click', function(e) {
+                    if (e.target === lightboxModal || e.target.classList.contains('lightbox-content')) {
+                        closeLightbox();
+                    }
+                });
+            }
+
+            // Initialize navigation buttons
+            updateNavigationButtons();
+        });
     </script>
 </body>
 </html>

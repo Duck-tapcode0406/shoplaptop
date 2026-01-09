@@ -3,6 +3,18 @@ require_once 'includes/session.php';
 require_once 'includes/db.php';
 require_once 'includes/csrf.php';
 
+// Check if user is admin (for view-only mode)
+$is_admin_view_mode = false;
+if (isset($_SESSION['user_id'])) {
+    $user_id = $_SESSION['user_id'];
+    $admin_check = $conn->prepare("SELECT is_admin FROM user WHERE id = ?");
+    $admin_check->bind_param('i', $user_id);
+    $admin_check->execute();
+    $admin_result = $admin_check->get_result();
+    $admin_data = $admin_result ? $admin_result->fetch_assoc() : null;
+    $is_admin_view_mode = ($admin_data && $admin_data['is_admin'] == 1);
+}
+
 // Lưu thời gian hiện tại vào session (nếu chưa có)
 if (!isset($_SESSION['current_time'])) {
     $_SESSION['current_time'] = date('Y-m-d H:i:s');  // Lưu thời gian hiện tại
@@ -810,7 +822,8 @@ $result = $stmt->get_result();
                             </div>
                         </a>
                         
-                        <!-- Actions - Hover -->
+                        <!-- Actions - Hover (Hidden for admin view mode) -->
+                        <?php if (!$is_admin_view_mode): ?>
                         <div class="product-actions-hover">
                             <form method="POST" action="add_to_cart.php" onclick="event.stopPropagation();">
                                 <?php echo getCSRFTokenField(); ?>
@@ -820,6 +833,7 @@ $result = $stmt->get_result();
                                 </button>
                             </form>
                         </div>
+                        <?php endif; ?>
                     </div>
                 <?php endwhile; ?>
             </div>

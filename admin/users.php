@@ -86,9 +86,14 @@ $csrf_token = generateCSRFToken();
             <span>Người dùng</span>
         </div>
     </div>
-    <a href="user_add.php" class="btn btn-primary">
-        <i class="fas fa-plus"></i> Thêm người dùng
-    </a>
+    <div style="display: flex; gap: 10px;">
+        <a href="index.php" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Quay lại
+        </a>
+        <a href="user_add.php" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Thêm người dùng
+        </a>
+    </div>
 </div>
 
 <?php if ($error_message): ?>
@@ -149,12 +154,6 @@ $csrf_token = generateCSRFToken();
         <button type="submit" class="btn btn-primary">
             <i class="fas fa-search"></i> Tìm kiếm
         </button>
-        
-        <?php if ($search || $admin_filter >= 0): ?>
-        <a href="users.php" class="btn btn-secondary">
-            <i class="fas fa-times"></i> Xóa lọc
-        </a>
-        <?php endif; ?>
     </form>
 </div>
 
@@ -277,4 +276,6 @@ $csrf_token = generateCSRFToken();
 </div>
 
 <?php require_once 'includes/admin_footer.php'; ?>
+
+
 

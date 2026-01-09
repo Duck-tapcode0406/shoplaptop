@@ -298,6 +298,12 @@ if ($addresses_table_exists) {
 </head>
 <body>
     <div class="addresses-container">
+        <!-- Back Button -->
+        <a href="index.php" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+            Quay lại trang chủ
+        </a>
+        
         <div class="addresses-header">
             <h1>
                 <i class="fas fa-map-marker-alt"></i>

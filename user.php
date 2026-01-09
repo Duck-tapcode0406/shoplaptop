@@ -216,6 +216,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 </head>
 <body>
     <div class="account-container">
+        <!-- Back Button -->
+        <a href="index.php" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+            Quay lại trang chủ
+        </a>
+        
         <div class="account-layout">
             <!-- Main Content -->
             <div class="account-content">

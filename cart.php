@@ -325,6 +325,12 @@ $order_check_result = $stmt->get_result();
 </head>
 <body>
     <div class="cart-container">
+        <!-- Back Button -->
+        <a href="index.php" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+            Quay lại trang chủ
+        </a>
+        
         <!-- Page Header -->
         <h1 style="margin-bottom: var(--space-lg);">
             <i class="fas fa-shopping-cart" style="margin-right: var(--space-md);"></i>Giỏ Hàng Của Bạn

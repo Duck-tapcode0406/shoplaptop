@@ -92,6 +92,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             align-items: center;
             justify-content: center;
             padding: var(--space-md);
+            position: relative;
         }
 
         .forgot-container {
@@ -102,6 +103,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             box-shadow: var(--shadow-lg);
             padding: var(--space-5xl);
             text-align: center;
+            position: relative;
         }
 
         .forgot-icon {
@@ -269,6 +271,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </head>
 <body>
     <div class="forgot-container">
+        <!-- Back Button -->
+        <a href="login.php" class="back-button" style="position: absolute; top: 20px; left: 20px; z-index: 10;">
+            <i class="fas fa-arrow-left"></i>
+            Quay lại đăng nhập
+        </a>
+        
         <?php if ($step == 1): ?>
             <!-- Step 1: Enter Phone -->
             <div class="forgot-icon">

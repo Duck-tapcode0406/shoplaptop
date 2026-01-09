@@ -90,6 +90,9 @@ $status_text = [
         </div>
     </div>
     <div style="display: flex; gap: 10px;">
+        <a href="orders.php" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Quay lại
+        </a>
         <button class="btn btn-secondary" onclick="window.print()">
             <i class="fas fa-print"></i> In đơn
         </button>
@@ -276,4 +279,6 @@ $status_text = [
 </style>
 
 <?php require_once 'includes/admin_footer.php'; ?>
+
+
 

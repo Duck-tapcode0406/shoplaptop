@@ -66,20 +66,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             } else {
                 // Insert user using prepared statement
                 $hashed_password = password_hash($input_password, PASSWORD_DEFAULT);
-                $insert_stmt = $conn->prepare("INSERT INTO user (username, password, familyname, firstname, phone, email) 
-                                              VALUES (?, ?, ?, ?, ?, ?)");
-                $insert_stmt->bind_param('ssssss', $input_username, $hashed_password, $familyname, $firstname, $phone, $email);
+                $is_admin_default = 0; // Default to customer
+                $insert_stmt = $conn->prepare("INSERT INTO user (username, password, familyname, firstname, phone, email, is_admin) 
+                                              VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $insert_stmt->bind_param('ssssssi', $input_username, $hashed_password, $familyname, $firstname, $phone, $email, $is_admin_default);
 
                 if ($insert_stmt->execute()) {
                     $user_id = $conn->insert_id;
                     
-                    // User mới mặc định là customer (is_admin = 0), không cần làm gì thêm
+                    // User mới mặc định là customer (is_admin = 0)
                     $success_message = "Đăng ký thành công! Chuyển hướng đến trang đăng nhập...";
                     header("refresh:2;url=login.php");
-                } else {
-                        error_log("Error assigning role: " . $role_stmt->error);
-                        $error_message = "Lỗi khi gán quyền!";
-                    }
                 } else {
                     error_log("Error registering user: " . $insert_stmt->error);
                     $error_message = "Lỗi khi đăng ký. Vui lòng thử lại.";
@@ -424,6 +421,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <div class="split-right">
             <div class="auth-container">
                 <div class="auth-card">
+            <!-- Back Button -->
+            <a href="index.php" class="back-button" style="margin-bottom: 20px;">
+                <i class="fas fa-arrow-left"></i>
+                Quay lại trang chủ
+            </a>
+            
             <!-- Header -->
             <div class="auth-header">
                 <div class="auth-logo">

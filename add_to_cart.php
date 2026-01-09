@@ -11,6 +11,20 @@ require_once 'includes/error_handler.php';
 
 requireLogin(); // Yêu cầu đăng nhập
 
+// Check if user is admin - block admin from adding to cart
+if (isset($_SESSION['user_id'])) {
+    $user_id = $_SESSION['user_id'];
+    $admin_check = $conn->prepare("SELECT is_admin FROM user WHERE id = ?");
+    $admin_check->bind_param('i', $user_id);
+    $admin_check->execute();
+    $admin_result = $admin_check->get_result();
+    $admin_data = $admin_result ? $admin_result->fetch_assoc() : null;
+    
+    if ($admin_data && $admin_data['is_admin'] == 1) {
+        handleError("Admin không thể mua hàng. Vui lòng đăng xuất và đăng nhập bằng tài khoản khách hàng.", 403);
+    }
+}
+
 // Validate CSRF token
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validateCSRFPost();

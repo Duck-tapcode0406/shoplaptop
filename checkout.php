@@ -20,6 +20,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validateCSRFPost();
     
     try {
+        // Handle shipping form submission (Step 2)
+        if (isset($_POST['shipping_name']) && !isset($_POST['checkout_all'])) {
+            // Validate shipping data
+            $shipping_name = trim($_POST['shipping_name'] ?? '');
+            $shipping_phone = trim($_POST['shipping_phone'] ?? '');
+            $shipping_email = trim($_POST['shipping_email'] ?? '');
+            $shipping_address = trim($_POST['shipping_address'] ?? '');
+            $shipping_city = trim($_POST['shipping_city'] ?? '');
+            $shipping_postal = trim($_POST['shipping_postal'] ?? '');
+            
+            // Validation
+            if (empty($shipping_name) || strlen($shipping_name) < 2) {
+                $error_message = "Họ và tên phải có ít nhất 2 ký tự!";
+            } elseif (empty($shipping_phone) || !preg_match('/^[0-9]{10,11}$/', $shipping_phone)) {
+                $error_message = "Số điện thoại không hợp lệ! (10-11 chữ số)";
+            } elseif (empty($shipping_email) || !filter_var($shipping_email, FILTER_VALIDATE_EMAIL)) {
+                $error_message = "Email không hợp lệ!";
+            } elseif (empty($shipping_address) || strlen($shipping_address) < 10) {
+                $error_message = "Địa chỉ phải có ít nhất 10 ký tự!";
+            } elseif (empty($shipping_city) || strlen($shipping_city) < 2) {
+                $error_message = "Thành phố/Tỉnh không hợp lệ!";
+            } else {
+                // Save to session
+                $_SESSION['shipping_name'] = $shipping_name;
+                $_SESSION['shipping_phone'] = $shipping_phone;
+                $_SESSION['shipping_email'] = $shipping_email;
+                $_SESSION['shipping_address'] = $shipping_address;
+                $_SESSION['shipping_city'] = $shipping_city;
+                $_SESSION['shipping_postal'] = $shipping_postal;
+                
+                // Redirect to payment step
+                header('Location: checkout.php?step=3');
+                exit();
+            }
+        }
+        
         $conn->begin_transaction();
 
         if (isset($_POST['checkout_all'])) {
@@ -311,24 +347,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             box-shadow: 0 0 0 4px rgba(0, 102, 179, 0.1);
         }
 
-        /* Payment Methods - VNPay Style */
+        .form-group input:invalid:not(:placeholder-shown),
+        .form-group select:invalid:not(:placeholder-shown),
+        .form-group textarea:invalid:not(:placeholder-shown) {
+            border-color: #e74c3c;
+            background: #fff5f5;
+        }
+
+        .form-group input:valid:not(:placeholder-shown),
+        .form-group select:valid:not(:placeholder-shown),
+        .form-group textarea:valid:not(:placeholder-shown) {
+            border-color: #00b894;
+        }
+
+        .field-error {
+            display: block;
+            color: #e74c3c;
+            font-size: 12px;
+            margin-top: 5px;
+            min-height: 18px;
+        }
+
+        .form-group label span {
+            margin-left: 4px;
+        }
+
+        /* Payment Methods - VNPay Style (Improved) */
         .payment-methods {
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 20px;
+            margin-top: 20px;
         }
 
         .payment-option {
-            border: 2px solid #e9ecef;
-            border-radius: 16px;
-            padding: 20px 25px;
+            border: 3px solid #e9ecef;
+            border-radius: 20px;
+            padding: 25px 30px;
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             display: flex;
             align-items: center;
-            background: #fafbfc;
+            background: linear-gradient(135deg, #ffffff, #f8f9fa);
             position: relative;
             overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
         }
 
         .payment-option::before {
@@ -336,26 +399,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             position: absolute;
             top: 0;
             left: 0;
-            width: 4px;
+            width: 6px;
             height: 100%;
             background: transparent;
-            transition: background 0.3s;
+            transition: all 0.4s;
+        }
+
+        .payment-option::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(0, 102, 179, 0.1) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.4s;
         }
 
         .payment-option:hover {
             border-color: #0066b3;
-            background: white;
-            transform: translateX(5px);
+            background: linear-gradient(135deg, #ffffff, #f0f7ff);
+            transform: translateX(8px) translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 102, 179, 0.2);
+        }
+
+        .payment-option:hover::after {
+            opacity: 1;
         }
 
         .payment-option.selected {
             border-color: #0066b3;
-            background: linear-gradient(135deg, rgba(0, 102, 179, 0.05), rgba(0, 160, 233, 0.05));
-            box-shadow: 0 8px 30px rgba(0, 102, 179, 0.15);
+            background: linear-gradient(135deg, rgba(0, 102, 179, 0.08), rgba(0, 160, 233, 0.08));
+            box-shadow: 0 12px 40px rgba(0, 102, 179, 0.25);
+            transform: translateX(5px);
         }
 
         .payment-option.selected::before {
             background: linear-gradient(180deg, #0066b3, #00a0e9);
+            box-shadow: 0 0 20px rgba(0, 102, 179, 0.5);
+        }
+
+        .payment-option.selected::after {
+            opacity: 1;
         }
 
         .payment-option input[type="radio"] {
@@ -388,15 +474,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .payment-icon {
-            width: 60px;
-            height: 60px;
-            border-radius: 14px;
+            width: 70px;
+            height: 70px;
+            border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
-            margin-right: 18px;
+            font-size: 28px;
+            margin-right: 20px;
             flex-shrink: 0;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            transition: all 0.4s;
+        }
+
+        .payment-option:hover .payment-icon {
+            transform: scale(1.1) rotate(5deg);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
         }
 
         .payment-icon.cod {
@@ -406,7 +499,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .payment-icon.vnpay {
             background: linear-gradient(135deg, #0066b3, #00a0e9);
-            padding: 10px;
+            padding: 12px;
         }
 
         .payment-icon.vnpay img {
@@ -420,52 +513,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flex: 1;
         }
 
+        .payment-info {
+            flex: 1;
+            position: relative;
+            z-index: 1;
+        }
+
         .payment-info strong {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
             color: #2d3436;
-            font-size: 16px;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
         }
 
         .payment-info small {
             color: #636e72;
-            font-size: 13px;
-            line-height: 1.4;
+            font-size: 14px;
+            line-height: 1.5;
+            display: block;
         }
 
         .payment-badge {
             background: linear-gradient(135deg, #e74c3c, #c0392b);
             color: white;
-            font-size: 11px;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-weight: 600;
+            font-size: 12px;
+            padding: 6px 14px;
+            border-radius: 25px;
+            font-weight: 700;
             margin-left: auto;
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+            position: relative;
+            z-index: 1;
+            animation: pulse 2s infinite;
         }
 
-        /* VNPay Options */
-        #vnpay-options {
-            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-            border-radius: 16px;
-            padding: 25px;
-            margin-top: 20px;
-            border: 2px dashed #0066b3;
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
         }
 
-        #vnpay-options .form-group label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        #vnpay-options select {
-            background: white;
-        }
-
-        .vnpay-note {
-            background: linear-gradient(135deg, #e3f2fd, #bbdefb) !important;
-            border-left: 4px solid #0066b3 !important;
-        }
 
         /* Order Summary */
         .order-summary {
@@ -693,6 +785,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
     <div class="checkout-container">
+        <!-- Back Button -->
+        <?php if ($current_step > 1): ?>
+        <a href="<?php echo $current_step == 2 ? 'cart.php' : 'checkout.php?step=' . ($current_step - 1); ?>" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+            Quay lại
+        </a>
+        <?php endif; ?>
+        
         <!-- Checkout Header Banner -->
         <div class="checkout-header">
             <div class="checkout-header-info">
@@ -800,36 +900,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <i class="fas fa-crosshairs"></i> Xác Nhận Vị Trí Hiện Tại
                         </button>
                     </div>
-                    <form method="POST" id="shipping-form">
+                    <form method="POST" id="shipping-form" onsubmit="return validateShippingForm(event)">
+                        <?php echo getCSRFTokenField(); ?>
                         <div class="form-row">
                             <div class="form-group">
-                                <label>Họ và Tên</label>
-                                <input type="text" name="shipping_name" id="shipping_name" required placeholder="Nhập họ và tên">
+                                <label>Họ và Tên <span style="color: #e74c3c;">*</span></label>
+                                <input type="text" name="shipping_name" id="shipping_name" required placeholder="Nhập họ và tên" minlength="2">
+                                <small class="field-error" id="shipping_name_error"></small>
                             </div>
                             <div class="form-group">
-                                <label>Số Điện Thoại</label>
-                                <input type="tel" name="shipping_phone" id="shipping_phone" required placeholder="Nhập số điện thoại">
+                                <label>Số Điện Thoại <span style="color: #e74c3c;">*</span></label>
+                                <input type="tel" name="shipping_phone" id="shipping_phone" required placeholder="Nhập số điện thoại" pattern="[0-9]{10,11}">
+                                <small class="field-error" id="shipping_phone_error"></small>
                             </div>
                         </div>
                         <div class="form-row full">
                             <div class="form-group">
-                                <label>Địa Chỉ</label>
-                                <input type="text" name="shipping_address" id="shipping_address" required placeholder="Nhập địa chỉ giao hàng">
+                                <label>Email <span style="color: #e74c3c;">*</span></label>
+                                <input type="email" name="shipping_email" id="shipping_email" required placeholder="Nhập email để nhận thông báo đơn hàng">
+                                <small class="field-error" id="shipping_email_error"></small>
+                            </div>
+                        </div>
+                        <div class="form-row full">
+                            <div class="form-group">
+                                <label>Địa Chỉ <span style="color: #e74c3c;">*</span></label>
+                                <input type="text" name="shipping_address" id="shipping_address" required placeholder="Nhập địa chỉ giao hàng" minlength="10">
+                                <small class="field-error" id="shipping_address_error"></small>
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label>Thành Phố/Tỉnh</label>
-                                <input type="text" name="shipping_city" id="shipping_city" required placeholder="Nhập thành phố">
+                                <label>Thành Phố/Tỉnh <span style="color: #e74c3c;">*</span></label>
+                                <input type="text" name="shipping_city" id="shipping_city" required placeholder="Nhập thành phố/tỉnh" minlength="2">
+                                <small class="field-error" id="shipping_city_error"></small>
                             </div>
                             <div class="form-group">
                                 <label>Mã Bưu Chính</label>
-                                <input type="text" name="shipping_postal" id="shipping_postal" placeholder="Nhập mã bưu chính">
+                                <input type="text" name="shipping_postal" id="shipping_postal" placeholder="Nhập mã bưu chính (tùy chọn)" pattern="[0-9]{5,6}">
+                                <small class="field-error" id="shipping_postal_error"></small>
                             </div>
                         </div>
                         <div class="checkout-actions">
                             <a href="cart.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Quay Lại</a>
-                            <a href="checkout.php?step=3" class="btn btn-primary"><i class="fas fa-arrow-right"></i> Tiếp Tục</a>
+                            <button type="submit" class="btn btn-primary" id="continue-to-payment-btn">
+                                <i class="fas fa-arrow-right"></i> Tiếp Tục Đến Thanh Toán
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -863,53 +978,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <span class="payment-badge">Khuyên dùng</span>
                         </label>
-                    </div>
-
-                    <!-- VNPay Bank Selection (hidden by default) -->
-                    <div id="vnpay-options" style="display: none; margin-top: var(--space-lg);">
-                        <div class="form-group">
-                            <label><i class="fas fa-university"></i> Chọn ngân hàng (tùy chọn)</label>
-                            <select name="bank_code" id="bank_code" class="form-control">
-                                <option value="">-- Chọn ngân hàng hoặc để trống --</option>
-                                <optgroup label="Thẻ ATM nội địa">
-                                    <option value="NCB">NCB - Ngân hàng Quốc Dân</option>
-                                    <option value="SACOMBANK">Sacombank</option>
-                                    <option value="EXIMBANK">Eximbank</option>
-                                    <option value="MSBANK">MSB - Maritime Bank</option>
-                                    <option value="NAMABANK">NamABank</option>
-                                    <option value="VNMART">VnMart</option>
-                                    <option value="VIETINBANK">Vietinbank</option>
-                                    <option value="VIETCOMBANK">Vietcombank</option>
-                                    <option value="HDBANK">HDBank</option>
-                                    <option value="DONGABANK">Dong A Bank</option>
-                                    <option value="TPBANK">TPBank</option>
-                                    <option value="OJB">OceanBank</option>
-                                    <option value="BIDV">BIDV</option>
-                                    <option value="TECHCOMBANK">Techcombank</option>
-                                    <option value="VPBANK">VPBank</option>
-                                    <option value="AGRIBANK">Agribank</option>
-                                    <option value="MBBANK">MBBank</option>
-                                    <option value="ACB">ACB</option>
-                                    <option value="OCB">OCB</option>
-                                    <option value="SHB">SHB</option>
-                                    <option value="IVB">IVB</option>
-                                </optgroup>
-                                <optgroup label="Thẻ quốc tế">
-                                    <option value="VISA">VISA</option>
-                                    <option value="MASTERCARD">MasterCard</option>
-                                    <option value="JCB">JCB</option>
-                                </optgroup>
-                                <optgroup label="Ví điện tử">
-                                    <option value="VNPAYQR">VNPAY QR</option>
-                                </optgroup>
-                            </select>
-                        </div>
-                        <div class="vnpay-note" style="background: #e3f2fd; padding: var(--space-md); border-radius: var(--radius-md); margin-top: var(--space-md);">
-                            <p style="margin: 0; font-size: var(--fs-small); color: #1565c0;">
-                                <i class="fas fa-info-circle"></i> 
-                                Bạn sẽ được chuyển đến cổng thanh toán VNPay để hoàn tất giao dịch một cách an toàn.
-                            </p>
-                        </div>
                     </div>
 
                     <div class="order-summary" style="margin-top: var(--space-2xl);">
@@ -962,8 +1030,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </button>
                     </form>
 
-                    <!-- VNPay Form -->
-                    <form method="POST" action="vnpay_create_payment.php" id="vnpay-form" class="checkout-actions" style="margin-top: var(--space-2xl); display: none;">
+                    <!-- VNPay Form (Hidden - Auto submit when VNPay is selected) -->
+                    <form method="POST" action="vnpay_create_payment.php" id="vnpay-form" style="display: none;">
                         <?php echo getCSRFTokenField(); ?>
                         <input type="hidden" name="bank_code" id="vnpay_bank_code" value="">
                         <input type="hidden" name="shipping_name" value="<?php echo htmlspecialchars($_SESSION['shipping_name'] ?? ''); ?>">
@@ -971,10 +1039,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="hidden" name="shipping_email" value="<?php echo htmlspecialchars($_SESSION['shipping_email'] ?? ''); ?>">
                         <input type="hidden" name="shipping_address" value="<?php echo htmlspecialchars($_SESSION['shipping_address'] ?? ''); ?>">
                         <input type="hidden" name="shipping_city" value="<?php echo htmlspecialchars($_SESSION['shipping_city'] ?? ''); ?>">
-                        <a href="checkout.php?step=2" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Quay Lại</a>
-                        <button type="submit" class="btn btn-primary btn-lg" style="background: linear-gradient(135deg, #0066b3, #00a0e9);">
-                            <i class="fas fa-lock"></i> Thanh Toán Qua VNPay
-                        </button>
                     </form>
                 </div>
 
@@ -1030,8 +1094,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <!-- Location verification script already loaded via header.php -->
     <script>
-        // Khởi tạo Location Verification
-        if (typeof LocationVerification !== 'undefined') {
+        // Đợi DOM ready trước khi khởi tạo
+        document.addEventListener('DOMContentLoaded', function() {
+            // Kiểm tra xem LocationVerification đã được load chưa
+            if (typeof LocationVerification === 'undefined') {
+                console.error('LocationVerification class not loaded. Make sure js/location-verification.js is included.');
+                return;
+            }
+
+            // Khởi tạo Location Verification
             window.locationVerificationInstance = new LocationVerification({
                 apiEndpoint: 'api/update_location.php',
                 onSuccess: function(data) {
@@ -1039,46 +1110,159 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 },
                 onError: function(message) {
                     console.error('Lỗi:', message);
+                    // Hiển thị thông báo lỗi cho user
+                    if (typeof window.showError === 'function') {
+                        window.showError('Lỗi', message);
+                    } else {
+                        alert('Lỗi: ' + message);
+                    }
                 },
                 onLocationFound: function(place, location) {
-                    // Tự động điền form với thông tin địa chỉ - CHỈ VỊ TRÍ
-                    const address = place.address || place.Địa_chỉ || '';
-                    if (address) {
-                        document.getElementById('shipping_address').value = address;
-                    } else if (place.title || place.tiêu_đề) {
-                        document.getElementById('shipping_address').value = place.title || place.tiêu_đề;
-                    }
-                    
-                    // Trích xuất thành phố từ địa chỉ
-                    if (address) {
-                        const addressParts = address.split(',');
-                        if (addressParts.length > 0) {
-                            let city = addressParts[addressParts.length - 1].trim();
-                            // Loại bỏ mã bưu chính nếu có
-                            city = city.replace(/\d{5,6}/g, '').trim();
-                            document.getElementById('shipping_city').value = city;
-                        }
-                    }
-                    
-                    // KHÔNG điền số điện thoại - giữ nguyên từ thông tin cá nhân
-                    // Tên cũng giữ nguyên từ thông tin cá nhân, nhưng có thể sửa
+                    // Callback này chỉ để log, không điền form ở đây
+                    // Form sẽ được điền trong confirmLocation sau khi user xác nhận
+                    console.log('Location found:', place, location);
                 }
             });
 
             // Xử lý sự kiện click nút xác nhận vị trí
-            document.getElementById('verify-location-btn')?.addEventListener('click', function() {
-                window.locationVerificationInstance.verifyAndUpdate();
+            const verifyLocationBtn = document.getElementById('verify-location-btn');
+            if (verifyLocationBtn) {
+                verifyLocationBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    if (window.locationVerificationInstance) {
+                        // Disable button trong khi đang xử lý
+                        this.disabled = true;
+                        const originalText = this.innerHTML;
+                        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
+                        
+                        window.locationVerificationInstance.verifyAndUpdate()
+                            .catch(function(error) {
+                                console.error('Error in verifyAndUpdate:', error);
+                            })
+                            .finally(function() {
+                                // Re-enable button sau 2 giây
+                                setTimeout(function() {
+                                    verifyLocationBtn.disabled = false;
+                                    verifyLocationBtn.innerHTML = originalText;
+                                }, 2000);
+                            });
+                    } else {
+                        alert('Lỗi: Không thể khởi tạo hệ thống xác nhận vị trí. Vui lòng tải lại trang.');
+                        console.error('LocationVerification instance not found');
+                    }
+                });
+            }
+        });
+
+        // Shipping form validation
+        function validateShippingForm(e) {
+            e.preventDefault();
+            
+            const form = document.getElementById('shipping-form');
+            const shippingName = document.getElementById('shipping_name');
+            const shippingPhone = document.getElementById('shipping_phone');
+            const shippingEmail = document.getElementById('shipping_email');
+            const shippingAddress = document.getElementById('shipping_address');
+            const shippingCity = document.getElementById('shipping_city');
+            const shippingPostal = document.getElementById('shipping_postal');
+            
+            let isValid = true;
+            
+            // Clear previous errors
+            document.querySelectorAll('.field-error').forEach(el => el.textContent = '');
+            document.querySelectorAll('.form-group input').forEach(el => {
+                el.style.borderColor = '#e9ecef';
+                el.style.background = '#fafbfc';
             });
+            
+            // Validate name
+            if (!shippingName.value.trim() || shippingName.value.trim().length < 2) {
+                showFieldError('shipping_name', 'Họ và tên phải có ít nhất 2 ký tự!');
+                isValid = false;
+            }
+            
+            // Validate phone
+            const phonePattern = /^[0-9]{10,11}$/;
+            if (!shippingPhone.value.trim() || !phonePattern.test(shippingPhone.value.trim())) {
+                showFieldError('shipping_phone', 'Số điện thoại không hợp lệ! (10-11 chữ số)');
+                isValid = false;
+            }
+            
+            // Validate email
+            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!shippingEmail.value.trim() || !emailPattern.test(shippingEmail.value.trim())) {
+                showFieldError('shipping_email', 'Email không hợp lệ!');
+                isValid = false;
+            }
+            
+            // Validate address
+            if (!shippingAddress.value.trim() || shippingAddress.value.trim().length < 10) {
+                showFieldError('shipping_address', 'Địa chỉ phải có ít nhất 10 ký tự!');
+                isValid = false;
+            }
+            
+            // Validate city
+            if (!shippingCity.value.trim() || shippingCity.value.trim().length < 2) {
+                showFieldError('shipping_city', 'Thành phố/Tỉnh không hợp lệ!');
+                isValid = false;
+            }
+            
+            // Validate postal (optional but if filled, must be valid)
+            if (shippingPostal.value.trim()) {
+                const postalPattern = /^[0-9]{5,6}$/;
+                if (!postalPattern.test(shippingPostal.value.trim())) {
+                    showFieldError('shipping_postal', 'Mã bưu chính không hợp lệ! (5-6 chữ số)');
+                    isValid = false;
+                }
+            }
+            
+            if (isValid) {
+                form.submit();
+            } else {
+                // Scroll to first error
+                const firstError = document.querySelector('.field-error:not(:empty)');
+                if (firstError) {
+                    firstError.closest('.form-group').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+            
+            return false;
         }
+        
+        function showFieldError(fieldId, message) {
+            const field = document.getElementById(fieldId);
+            const errorEl = document.getElementById(fieldId + '_error');
+            
+            if (field) {
+                field.style.borderColor = '#e74c3c';
+                field.style.background = '#fff5f5';
+            }
+            
+            if (errorEl) {
+                errorEl.textContent = message;
+            }
+        }
+        
+        // Clear error on input
+        document.addEventListener('DOMContentLoaded', function() {
+            const formInputs = document.querySelectorAll('#shipping-form input');
+            formInputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    this.style.borderColor = '#e9ecef';
+                    this.style.background = '#fafbfc';
+                    const errorEl = document.getElementById(this.id + '_error');
+                    if (errorEl) errorEl.textContent = '';
+                });
+            });
+        });
 
         // Payment method switching
         document.addEventListener('DOMContentLoaded', function() {
             const paymentOptions = document.querySelectorAll('.payment-option');
             const codForm = document.getElementById('cod-form');
             const vnpayForm = document.getElementById('vnpay-form');
-            const vnpayOptions = document.getElementById('vnpay-options');
-            const bankCodeSelect = document.getElementById('bank_code');
-            const vnpayBankCode = document.getElementById('vnpay_bank_code');
 
             // Initialize selected state
             paymentOptions.forEach(option => {
@@ -1101,26 +1285,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (radio) {
                         radio.checked = true;
                         
-                        // Toggle forms based on payment method
+                        // Handle payment method selection
                         if (radio.value === 'vnpay') {
+                            // Hide COD form
                             if (codForm) codForm.style.display = 'none';
-                            if (vnpayForm) vnpayForm.style.display = 'flex';
-                            if (vnpayOptions) vnpayOptions.style.display = 'block';
+                            
+                            // Auto-submit VNPay form immediately (with short delay for visual feedback)
+                            setTimeout(() => {
+                                if (vnpayForm) {
+                                    vnpayForm.submit();
+                                }
+                            }, 500);
                         } else {
+                            // Show COD form
                             if (codForm) codForm.style.display = 'flex';
-                            if (vnpayForm) vnpayForm.style.display = 'none';
-                            if (vnpayOptions) vnpayOptions.style.display = 'none';
                         }
                     }
                 });
             });
-
-            // Sync bank code selection
-            if (bankCodeSelect && vnpayBankCode) {
-                bankCodeSelect.addEventListener('change', function() {
-                    vnpayBankCode.value = this.value;
-                });
-            }
+            
         });
     </script>
     <?php include('includes/footer.php'); ?>
+

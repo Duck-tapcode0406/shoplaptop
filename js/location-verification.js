@@ -376,95 +376,139 @@ class LocationVerification {
             const address = normalizedPlace.address || '';
             const addressComponents = normalizedPlace.address_components || [];
             
+            // Trích xuất thông tin địa chỉ
+            const city = this.extractCity(address, addressComponents);
+            const district = this.extractDistrict(address, addressComponents);
+            const ward = this.extractWard(address, addressComponents);
+            
             const addressData = {
                 latitude: location.latitude,
                 longitude: location.longitude,
-                address: address,
+                address: address || normalizedPlace.title || '',
                 title: normalizedPlace.title || '',
                 // KHÔNG gửi phone - sẽ lấy từ thông tin cá nhân
-                city: this.extractCity(address, addressComponents),
-                district: this.extractDistrict(address, addressComponents),
-                ward: this.extractWard(address, addressComponents),
+                city: city,
+                district: district,
+                ward: ward,
                 gps_coordinates: {
-                    latitude: place.gps_coordinates?.latitude || place['tọa độ GPS']?.vĩ_độ || location.latitude,
-                    longitude: place.gps_coordinates?.longitude || place['tọa độ GPS']?.kinh_độ || location.longitude
+                    latitude: normalizedPlace.gps_coordinates?.latitude || location.latitude,
+                    longitude: normalizedPlace.gps_coordinates?.longitude || location.longitude
                 }
             };
 
-            // Cập nhật địa chỉ
-            const result = await this.updateShippingAddress(addressData);
+            // Kiểm tra xem có đang ở trang checkout không
+            const isCheckoutPage = document.getElementById('shipping_address') !== null;
             
-            this.hideLoading();
-            document.querySelector('.location-modal')?.remove();
-            
-            // Tự động điền vào form thay vì reload
-            this.fillFormWithAddress(addressData);
-            
-            this.showSuccess('Đã cập nhật vị trí thành công!');
+            if (isCheckoutPage) {
+                // Trang checkout: chỉ điền form, không cần gọi API
+                this.hideLoading();
+                document.querySelector('.location-modal')?.remove();
+                
+                // Điền form trực tiếp
+                this.fillFormWithAddress(addressData);
+                
+                this.showSuccess('Đã cập nhật vị trí thành công!');
+            } else {
+                // Trang addresses: gọi API để lưu vào database
+                const result = await this.updateShippingAddress(addressData);
+                
+                this.hideLoading();
+                document.querySelector('.location-modal')?.remove();
+                
+                // Tự động điền vào form
+                this.fillFormWithAddress(addressData);
+                
+                this.showSuccess('Đã cập nhật vị trí thành công!');
+            }
         } catch (error) {
             this.hideLoading();
+            document.querySelector('.location-modal')?.remove();
             this.showError(error.message);
         }
     }
 
     /**
      * Điền dữ liệu vào form
+     * Hỗ trợ cả checkout.php và addresses.php
      */
     fillFormWithAddress(addressData) {
         console.log('Filling form with address data:', addressData);
         
-        // Điền address_line1 (số nhà, tên đường)
-        const addressLine1Input = document.getElementById('address_line1');
-        if (addressLine1Input) {
-            if (addressData.address_line1) {
-                addressLine1Input.value = addressData.address_line1.trim();
-            } else if (addressData.address) {
-                // Lấy phần đầu của địa chỉ (số nhà, tên đường)
+        // Kiểm tra xem đang ở trang nào để điền form phù hợp
+        const isCheckoutPage = document.getElementById('shipping_address') !== null;
+        const isAddressesPage = document.getElementById('address_line1') !== null;
+        
+        if (isCheckoutPage) {
+            // Trang checkout.php - dùng shipping_ prefix
+            const shippingAddressInput = document.getElementById('shipping_address');
+            if (shippingAddressInput && addressData.address) {
+                shippingAddressInput.value = addressData.address.trim();
+            }
+
+            const shippingCityInput = document.getElementById('shipping_city');
+            if (shippingCityInput && addressData.city) {
+                shippingCityInput.value = addressData.city.trim();
+            }
+            
+            // Scroll đến form
+            const form = document.getElementById('shipping-form');
+            if (form) {
+                form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        } else if (isAddressesPage) {
+            // Trang addresses.php - dùng address_line1, ward, district, city
+            const addressLine1Input = document.getElementById('address_line1');
+            if (addressLine1Input) {
+                if (addressData.address_line1) {
+                    addressLine1Input.value = addressData.address_line1.trim();
+                } else if (addressData.address) {
+                    // Lấy phần đầu của địa chỉ (số nhà, tên đường)
+                    const addressParts = addressData.address.split(',');
+                    if (addressParts.length > 0) {
+                        addressLine1Input.value = addressParts[0].trim();
+                    }
+                } else if (addressData.title) {
+                    addressLine1Input.value = addressData.title.trim();
+                }
+            }
+
+            // Điền address (thông tin bổ sung)
+            const addressInput = document.getElementById('address');
+            if (addressInput && addressData.address) {
+                // Lấy phần còn lại của địa chỉ (nếu có)
                 const addressParts = addressData.address.split(',');
-                if (addressParts.length > 0) {
-                    addressLine1Input.value = addressParts[0].trim();
-                }
-            } else if (addressData.title) {
-                addressLine1Input.value = addressData.title.trim();
-            }
-        }
-
-        // Điền address (thông tin bổ sung)
-        const addressInput = document.getElementById('address');
-        if (addressInput && addressData.address) {
-            // Lấy phần còn lại của địa chỉ (nếu có)
-            const addressParts = addressData.address.split(',');
-            if (addressParts.length > 1) {
-                // Bỏ phần đầu và 2 phần cuối (ward, district, city)
-                const remainingParts = addressParts.slice(1, -2);
-                if (remainingParts.length > 0) {
-                    addressInput.value = remainingParts.join(',').trim();
+                if (addressParts.length > 1) {
+                    // Bỏ phần đầu và 2 phần cuối (ward, district, city)
+                    const remainingParts = addressParts.slice(1, -2);
+                    if (remainingParts.length > 0) {
+                        addressInput.value = remainingParts.join(',').trim();
+                    }
                 }
             }
-        }
 
-        // Điền ward (phường/xã)
-        const wardInput = document.getElementById('ward');
-        if (wardInput) {
-            wardInput.value = (addressData.ward || '').trim();
-        }
+            // Điền ward (phường/xã)
+            const wardInput = document.getElementById('ward');
+            if (wardInput) {
+                wardInput.value = (addressData.ward || '').trim();
+            }
 
-        // Điền district (quận/huyện)
-        const districtInput = document.getElementById('district');
-        if (districtInput) {
-            districtInput.value = (addressData.district || '').trim();
-        }
+            // Điền district (quận/huyện)
+            const districtInput = document.getElementById('district');
+            if (districtInput) {
+                districtInput.value = (addressData.district || '').trim();
+            }
 
-        // Điền city (thành phố/tỉnh)
-        const cityInput = document.getElementById('city');
-        if (cityInput) {
-            cityInput.value = (addressData.city || '').trim();
-        }
-
-        // Scroll đến form để người dùng thấy
-        const form = document.querySelector('.address-form-card') || document.querySelector('form');
-        if (form) {
-            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            // Điền city (thành phố/tỉnh)
+            const cityInput = document.getElementById('city');
+            if (cityInput) {
+                cityInput.value = (addressData.city || '').trim();
+            }
+            
+            // Scroll đến form
+            const form = document.querySelector('.address-form-card') || document.querySelector('form');
+            if (form) {
+                form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         }
         
         console.log('Form filled successfully');
@@ -611,21 +655,24 @@ class LocationVerification {
         } else if (typeof window.showNotification === 'function') {
             window.showNotification('success', 'Thành công', message);
         } else {
-            alert('Thành công: ' + message);
+            // Fallback: tạo notification element
+            const notification = document.createElement('div');
+            notification.className = 'location-notification location-notification-success';
+            notification.innerHTML = `
+                <i class="fas fa-check-circle"></i>
+                <span>${message}</span>
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
         }
-    }
-            <span>${message}</span>
-        `;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.classList.add('show');
-        }, 100);
-        
-        setTimeout(() => {
-            notification.classList.remove('show');
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
     }
 }
 

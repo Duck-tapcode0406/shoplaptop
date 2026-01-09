@@ -207,6 +207,12 @@ $result = $stmt->get_result();
 </head>
 <body>
     <div class="history-container">
+        <!-- Back Button -->
+        <a href="index.php" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+            Quay lại trang chủ
+        </a>
+        
         <!-- Page Header -->
         <div class="history-header">
             <h1>

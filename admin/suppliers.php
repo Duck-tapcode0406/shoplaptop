@@ -67,9 +67,14 @@ $suppliers = $conn->query("
             <span>Nhà cung cấp</span>
         </div>
     </div>
-    <button class="btn btn-primary" onclick="showAddModal()">
-        <i class="fas fa-plus"></i> Thêm nhà cung cấp
-    </button>
+    <div style="display: flex; gap: 10px;">
+        <a href="index.php" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Quay lại
+        </a>
+        <button class="btn btn-primary" onclick="showAddModal()">
+            <i class="fas fa-plus"></i> Thêm nhà cung cấp
+        </button>
+    </div>
 </div>
 
 <?php if ($error_message): ?>
@@ -183,4 +188,6 @@ document.getElementById('supplierModal').addEventListener('click', function(e) {
 </script>
 
 <?php require_once 'includes/admin_footer.php'; ?>
+
+
 

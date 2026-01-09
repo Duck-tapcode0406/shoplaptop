@@ -120,6 +120,9 @@ $units = $conn->query("
             <span>Danh mục</span>
         </div>
     </div>
+    <a href="index.php" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Quay lại
+    </a>
 </div>
 
 <?php if ($error_message): ?>
@@ -341,4 +344,6 @@ document.getElementById('unitModal').addEventListener('click', function(e) {
 </script>
 
 <?php require_once 'includes/admin_footer.php'; ?>
+
+
 

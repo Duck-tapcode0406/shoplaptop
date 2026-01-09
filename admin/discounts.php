@@ -73,9 +73,14 @@ $all_products = $conn->query("
             <span>Khuyến mãi</span>
         </div>
     </div>
-    <button class="btn btn-primary" onclick="showAddModal()">
-        <i class="fas fa-plus"></i> Thêm khuyến mãi
-    </button>
+    <div style="display: flex; gap: 10px;">
+        <a href="index.php" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Quay lại
+        </a>
+        <button class="btn btn-primary" onclick="showAddModal()">
+            <i class="fas fa-plus"></i> Thêm khuyến mãi
+        </button>
+    </div>
 </div>
 
 <?php if ($error_message): ?>

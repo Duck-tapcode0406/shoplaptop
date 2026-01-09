@@ -17,9 +17,12 @@ $success_message = '';
             <span>Cài đặt</span>
         </div>
     </div>
+    <a href="index.php" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Quay lại
+    </a>
 </div>
 
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px;">
+<div>
     <!-- Shop Info -->
     <div class="card">
         <div class="card-header">
@@ -51,73 +54,6 @@ $success_message = '';
         </p>
     </div>
     
-    <!-- System Info -->
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title"><i class="fas fa-server"></i> Thông tin hệ thống</h3>
-        </div>
-        
-        <table class="data-table">
-            <tbody>
-                <tr>
-                    <td><strong>PHP Version</strong></td>
-                    <td><?php echo phpversion(); ?></td>
-                </tr>
-                <tr>
-                    <td><strong>MySQL Version</strong></td>
-                    <td><?php echo $conn->server_info; ?></td>
-                </tr>
-                <tr>
-                    <td><strong>Server</strong></td>
-                    <td><?php echo $_SERVER['SERVER_SOFTWARE'] ?? 'N/A'; ?></td>
-                </tr>
-                <tr>
-                    <td><strong>Document Root</strong></td>
-                    <td><?php echo $_SERVER['DOCUMENT_ROOT']; ?></td>
-                </tr>
-                <tr>
-                    <td><strong>Max Upload Size</strong></td>
-                    <td><?php echo ini_get('upload_max_filesize'); ?></td>
-                </tr>
-                <tr>
-                    <td><strong>Max POST Size</strong></td>
-                    <td><?php echo ini_get('post_max_size'); ?></td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-    
-    <!-- Database Stats -->
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title"><i class="fas fa-database"></i> Thống kê Database</h3>
-        </div>
-        
-        <?php
-        $tables = ['user', 'product', 'order', 'order_details', 'price', 'image', 'reviews', 'wishlist', 'supplier'];
-        ?>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Bảng</th>
-                    <th>Số bản ghi</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($tables as $table): ?>
-                <?php
-                $result = $conn->query("SELECT COUNT(*) as cnt FROM `$table`");
-                $count = $result ? $result->fetch_assoc()['cnt'] : 0;
-                ?>
-                <tr>
-                    <td><code><?php echo $table; ?></code></td>
-                    <td><span class="status-badge info"><?php echo number_format($count); ?></span></td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-    
     <!-- Quick Actions -->
     <div class="card">
         <div class="card-header">
@@ -125,8 +61,8 @@ $success_message = '';
         </div>
         
         <div style="display: grid; gap: 15px;">
-            <a href="../index.php" target="_blank" class="btn btn-secondary" style="justify-content: flex-start;">
-                <i class="fas fa-external-link-alt"></i> Xem trang chủ
+            <a href="../index.php" class="btn btn-secondary" style="justify-content: flex-start;">
+                <i class="fas fa-store"></i> Xem trang chủ (chế độ admin)
             </a>
             <a href="products.php" class="btn btn-secondary" style="justify-content: flex-start;">
                 <i class="fas fa-box"></i> Quản lý sản phẩm

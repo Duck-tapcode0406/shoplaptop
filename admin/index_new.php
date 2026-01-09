@@ -296,3 +296,5 @@ new Chart(statusCtx, {
 
 <?php require_once 'includes/admin_footer.php'; ?>
 
+
+

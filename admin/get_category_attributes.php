@@ -10,16 +10,25 @@ if (!$category_id) {
     exit();
 }
 
-// Get attributes for this category
+// Get attributes for this category (remove duplicates by ID)
 $attributes = $conn->query("
-    SELECT * FROM category_attributes 
-    WHERE category_id = $category_id 
-    ORDER BY sort_order, attribute_name
+    SELECT DISTINCT ca.id, ca.category_id, ca.attribute_name, ca.attribute_type, 
+           ca.attribute_options, ca.is_required, ca.sort_order
+    FROM category_attributes ca
+    WHERE ca.category_id = $category_id 
+    ORDER BY ca.sort_order, ca.attribute_name
 ");
 
 $result = [];
-while ($row = $attributes->fetch_assoc()) {
-    $result[] = $row;
+$seen_ids = [];
+if ($attributes) {
+    while ($row = $attributes->fetch_assoc()) {
+        // Double check to avoid duplicates
+        if (!in_array($row['id'], $seen_ids)) {
+            $seen_ids[] = $row['id'];
+            $result[] = $row;
+        }
+    }
 }
 
 echo json_encode([

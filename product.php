@@ -3,6 +3,18 @@ require_once 'includes/session.php';
 require_once 'includes/db.php';
 require_once 'includes/csrf.php';
 
+// Check if user is admin (for view-only mode)
+$is_admin_view_mode = false;
+if (isset($_SESSION['user_id'])) {
+    $user_id = $_SESSION['user_id'];
+    $admin_check = $conn->prepare("SELECT is_admin FROM user WHERE id = ?");
+    $admin_check->bind_param('i', $user_id);
+    $admin_check->execute();
+    $admin_result = $admin_check->get_result();
+    $admin_data = $admin_result ? $admin_result->fetch_assoc() : null;
+    $is_admin_view_mode = ($admin_data && $admin_data['is_admin'] == 1);
+}
+
 // Lấy các tham số filter
 $search = isset($_GET['search']) && trim($_GET['search']) !== '' ? trim($_GET['search']) : '';
 $category = isset($_GET['category']) ? trim($_GET['category']) : '';
@@ -11,6 +23,54 @@ $monitor = isset($_GET['monitor']) ? trim($_GET['monitor']) : '';
 $min_price = isset($_GET['min_price']) && $_GET['min_price'] !== '' ? (float)$_GET['min_price'] : null;
 $max_price = isset($_GET['max_price']) && $_GET['max_price'] !== '' && $_GET['max_price'] !== '999999999' ? (float)$_GET['max_price'] : null;
 $sort = isset($_GET['sort']) ? $_GET['sort'] : 'newest';
+
+// Tìm category_id từ category name/slug
+$category_id = null;
+$category_name = '';
+if (!empty($category)) {
+    // Normalize category: lowercase, replace dashes/underscores with spaces
+    $category_normalized = strtolower(str_replace(['-', '_'], ' ', $category));
+    
+    // Tìm category trong database - thử nhiều cách match
+    // 1. Exact match với name (case-insensitive)
+    $cat_query = $conn->prepare("SELECT id, name FROM category WHERE is_active = 1 AND LOWER(name) = ? LIMIT 1");
+    $category_exact = strtolower($category);
+    $cat_query->bind_param('s', $category_exact);
+    $cat_query->execute();
+    $cat_result = $cat_query->get_result();
+    
+    if ($cat_result && $cat_result->num_rows > 0) {
+        $cat_row = $cat_result->fetch_assoc();
+        $category_id = intval($cat_row['id']);
+        $category_name = $cat_row['name'];
+    } else {
+        // 2. Match với normalized name (replace dashes/spaces)
+        $cat_query2 = $conn->prepare("SELECT id, name FROM category WHERE is_active = 1 AND LOWER(REPLACE(REPLACE(REPLACE(name, '-', ' '), '_', ' '), ' ', '')) = ? LIMIT 1");
+        $category_no_spaces = str_replace(' ', '', $category_normalized);
+        $cat_query2->bind_param('s', $category_no_spaces);
+        $cat_query2->execute();
+        $cat_result2 = $cat_query2->get_result();
+        
+        if ($cat_result2 && $cat_result2->num_rows > 0) {
+            $cat_row2 = $cat_result2->fetch_assoc();
+            $category_id = intval($cat_row2['id']);
+            $category_name = $cat_row2['name'];
+        } else {
+            // 3. Partial match (LIKE) - fallback
+            $cat_query3 = $conn->prepare("SELECT id, name FROM category WHERE is_active = 1 AND (LOWER(name) LIKE ? OR LOWER(REPLACE(REPLACE(name, '-', ' '), '_', ' ')) LIKE ?) LIMIT 1");
+            $category_search = "%" . $category_normalized . "%";
+            $cat_query3->bind_param('ss', $category_search, $category_search);
+            $cat_query3->execute();
+            $cat_result3 = $cat_query3->get_result();
+            
+            if ($cat_result3 && $cat_result3->num_rows > 0) {
+                $cat_row3 = $cat_result3->fetch_assoc();
+                $category_id = intval($cat_row3['id']);
+                $category_name = $cat_row3['name'];
+            }
+        }
+    }
+}
 
 // Tạo câu lệnh SQL đếm sản phẩm
 $count_sql = "
@@ -21,10 +81,6 @@ $count_sql = "
         price pr 
     ON 
         p.id = pr.product_id
-    LEFT JOIN 
-        image img 
-    ON 
-        p.id = img.product_id AND img.sort_order = 1
     WHERE 1=1";
         
 $params = [];
@@ -39,11 +95,14 @@ if (!empty($search)) {
     $params[] = $search_param;
 }
 
-// Điều kiện category (tìm trong tên)
-if (!empty($category)) {
-    $count_sql .= " AND p.name LIKE ?";
-    $types .= "s";
-    $params[] = "%" . $category . "%";
+// Điều kiện category (filter theo category_id)
+if ($category_id !== null) {
+    $count_sql .= " AND p.category_id = ? AND p.category_id IS NOT NULL";
+    $types .= "i";
+    $params[] = $category_id;
+} else if (!empty($category)) {
+    // Nếu không tìm thấy category_id, không hiển thị sản phẩm nào
+    $count_sql .= " AND 1=0";
 }
 
 // Điều kiện brand (tìm trong tên)
@@ -130,11 +189,14 @@ if (!empty($search)) {
     $params[] = $search_param;
 }
 
-// Điều kiện category
-if (!empty($category)) {
-    $sql .= " AND p.name LIKE ?";
-    $types .= "s";
-    $params[] = "%" . $category . "%";
+// Điều kiện category (filter theo category_id)
+if ($category_id !== null) {
+    $sql .= " AND p.category_id = ? AND p.category_id IS NOT NULL";
+    $types .= "i";
+    $params[] = $category_id;
+} else if (!empty($category)) {
+    // Nếu không tìm thấy category_id, không hiển thị sản phẩm nào
+    $sql .= " AND 1=0";
 }
 
 // Điều kiện brand
@@ -201,7 +263,9 @@ $result = $stmt->get_result();
 
 // Xác định tiêu đề trang
 $page_title = "Tất Cả Sản Phẩm";
-if (!empty($category)) {
+if ($category_id !== null && !empty($category_name)) {
+    $page_title = $category_name;
+} elseif (!empty($category)) {
     $page_title = ucfirst(str_replace('-', ' ', $category));
 } elseif (!empty($brand)) {
     $page_title = "Sản phẩm " . strtoupper($brand);
@@ -334,17 +398,96 @@ if (!empty($category)) {
             justify-content: space-between;
             align-items: center;
             margin-bottom: var(--space-2xl);
+            padding: var(--space-lg);
+            background: white;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: var(--space-md);
+        }
+
+        .section-header-left {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            flex: 1;
+        }
+
+        .section-icon-wrapper {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #6C5CE7 0%, #a29bfe 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(108, 92, 231, 0.3);
+            flex-shrink: 0;
+        }
+
+        .section-title-wrapper {
+            flex: 1;
         }
 
         .section-title {
-            font-size: var(--fs-h2);
-            font-weight: var(--fw-black);
+            font-size: var(--fs-h3);
+            font-weight: var(--fw-bold);
             color: var(--text-primary);
+            margin: 0 0 var(--space-xs) 0;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
         }
 
         .products-count {
             color: var(--text-secondary);
+            font-size: var(--fs-small);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .products-count strong {
+            color: var(--primary);
+            font-weight: var(--fw-bold);
             font-size: var(--fs-body);
+        }
+
+        .section-header-right {
+            display: flex;
+            align-items: center;
+        }
+
+        .sort-dropdown {
+            padding: 10px 40px 10px 16px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: white;
+            color: var(--text-primary);
+            font-size: var(--fs-small);
+            font-weight: 500;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23636e72' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            background-size: 12px;
+            transition: all var(--transition-fast);
+            min-width: 200px;
+        }
+
+        .sort-dropdown:hover {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+        }
+
+        .sort-dropdown:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
         }
 
         .sort-select {
@@ -748,9 +891,45 @@ if (!empty($category)) {
             .product-price-current {
                 font-size: 16px;
             }
+
+            .section-header {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: var(--space-md);
+            }
+
+            .section-header-left {
+                width: 100%;
+            }
+
+            .section-header-right {
+                width: 100%;
+            }
+
+            .sort-dropdown {
+                width: 100%;
+            }
+
+            .section-icon-wrapper {
+                width: 40px;
+                height: 40px;
+                font-size: 18px;
+            }
+
+            .section-title {
+                font-size: var(--fs-h4);
+            }
         }
     </style>
 
+    <!-- Back Button -->
+    <div style="max-width: 1200px; margin: 0 auto; padding: var(--space-md) var(--space-md) 0;">
+        <button onclick="window.history.back()" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+            Quay lại
+        </button>
+    </div>
+    
     <!-- Hero Banner -->
     <section class="hero">
         <div class="hero-content">
@@ -821,14 +1000,30 @@ if (!empty($category)) {
     <!-- Products Section -->
     <section class="products-section">
         <div class="section-header">
-            <h2 class="section-title">
-                <?php if (!empty($category) || !empty($brand) || !empty($search)): ?>
-                    <?php echo $page_title; ?>
-                <?php else: ?>
-                    Tất Cả Sản Phẩm
-                <?php endif; ?>
-            </h2>
-            <span class="products-count"><?php echo $total_products; ?> sản phẩm</span>
+            <div class="section-header-left">
+                <div class="section-icon-wrapper">
+                    <i class="fas fa-box"></i>
+                </div>
+                <div class="section-title-wrapper">
+                    <h2 class="section-title">
+                        <?php if (!empty($category) || !empty($brand) || !empty($search)): ?>
+                            <?php echo $page_title; ?>
+                        <?php else: ?>
+                            Sản Phẩm Khả Dụng
+                        <?php endif; ?>
+                    </h2>
+                    <span class="products-count">Hiển thị <strong><?php echo $total_products; ?></strong> sản phẩm</span>
+                </div>
+            </div>
+            <div class="section-header-right">
+                <select class="sort-dropdown" onchange="window.location.href=this.value">
+                    <option value="?sort=newest<?php echo !empty($search) ? '&search='.urlencode($search) : ''; ?><?php echo !empty($category) ? '&category='.urlencode($category) : ''; ?><?php echo !empty($brand) ? '&brand='.urlencode($brand) : ''; ?>" <?php echo $sort === 'newest' ? 'selected' : ''; ?>>Sắp xếp theo...</option>
+                    <option value="?sort=price_low<?php echo !empty($search) ? '&search='.urlencode($search) : ''; ?><?php echo !empty($category) ? '&category='.urlencode($category) : ''; ?><?php echo !empty($brand) ? '&brand='.urlencode($brand) : ''; ?>" <?php echo $sort === 'price_low' ? 'selected' : ''; ?>>Giá thấp → cao</option>
+                    <option value="?sort=price_high<?php echo !empty($search) ? '&search='.urlencode($search) : ''; ?><?php echo !empty($category) ? '&category='.urlencode($category) : ''; ?><?php echo !empty($brand) ? '&brand='.urlencode($brand) : ''; ?>" <?php echo $sort === 'price_high' ? 'selected' : ''; ?>>Giá cao → thấp</option>
+                    <option value="?sort=name_az<?php echo !empty($search) ? '&search='.urlencode($search) : ''; ?><?php echo !empty($category) ? '&category='.urlencode($category) : ''; ?><?php echo !empty($brand) ? '&brand='.urlencode($brand) : ''; ?>" <?php echo $sort === 'name_az' ? 'selected' : ''; ?>>Tên A → Z</option>
+                    <option value="?sort=name_za<?php echo !empty($search) ? '&search='.urlencode($search) : ''; ?><?php echo !empty($category) ? '&category='.urlencode($category) : ''; ?><?php echo !empty($brand) ? '&brand='.urlencode($brand) : ''; ?>" <?php echo $sort === 'name_za' ? 'selected' : ''; ?>>Tên Z → A</option>
+                </select>
+            </div>
         </div>
 
         <?php if ($result && $result->num_rows > 0): ?>
@@ -912,7 +1107,8 @@ if (!empty($category)) {
                             </div>
                         </a>
                         
-                        <!-- Actions - Hover -->
+                        <!-- Actions - Hover (Hidden for admin view mode) -->
+                        <?php if (!$is_admin_view_mode): ?>
                         <div class="product-actions-hover">
                             <form method="POST" action="add_to_cart.php" style="display: flex; gap: 10px; width: 100%;" onclick="event.stopPropagation();">
                                 <?php echo getCSRFTokenField(); ?>
@@ -923,6 +1119,7 @@ if (!empty($category)) {
                                 </button>
                             </form>
                         </div>
+                        <?php endif; ?>
                     </div>
                 <?php endwhile; ?>
             </div>

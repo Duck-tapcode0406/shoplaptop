@@ -67,8 +67,22 @@ $products = $conn->query("
     LIMIT $per_page OFFSET $offset
 ");
 
-// Get categories for filter
-$categories = $conn->query("SELECT DISTINCT category_id FROM product WHERE category_id IS NOT NULL");
+// Get all categories for filter (same as product_add.php)
+$categories_query = $conn->query("
+    SELECT c.id, c.name, c.parent_id, 
+           COALESCE(p.name, '') as parent_name
+    FROM category c
+    LEFT JOIN category p ON c.parent_id = p.id
+    WHERE c.is_active = 1
+    ORDER BY c.parent_id, c.sort_order, c.name
+");
+
+$categories = [];
+if ($categories_query) {
+    while ($cat = $categories_query->fetch_assoc()) {
+        $categories[] = $cat;
+    }
+}
 ?>
 
 <!-- Page Header -->
@@ -81,9 +95,14 @@ $categories = $conn->query("SELECT DISTINCT category_id FROM product WHERE categ
             <span>Sản phẩm</span>
         </div>
     </div>
-    <a href="product_add.php" class="btn btn-primary">
-        <i class="fas fa-plus"></i> Thêm sản phẩm
-    </a>
+    <div style="display: flex; gap: 10px;">
+        <a href="index.php" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Quay lại
+        </a>
+        <a href="product_add.php" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Thêm sản phẩm
+        </a>
+    </div>
 </div>
 
 <?php if (isset($success_message)): ?>
@@ -99,6 +118,17 @@ $categories = $conn->query("SELECT DISTINCT category_id FROM product WHERE categ
             <input type="text" name="search" class="form-control" placeholder="Tìm kiếm sản phẩm..." 
                    value="<?php echo htmlspecialchars($search); ?>">
         </div>
+        <select name="category" class="form-control" style="width: auto; min-width: 200px;">
+            <option value="">-- Tất cả danh mục --</option>
+            <?php foreach ($categories as $cat): 
+                $cat_name = $cat['parent_name'] ? $cat['parent_name'] . ' > ' . $cat['name'] : $cat['name'];
+                $selected = $category == $cat['id'] ? 'selected' : '';
+            ?>
+            <option value="<?php echo $cat['id']; ?>" <?php echo $selected; ?>>
+                <?php echo htmlspecialchars($cat_name); ?>
+            </option>
+            <?php endforeach; ?>
+        </select>
         <select name="sort" class="form-control" style="width: auto;">
             <option value="newest" <?php echo $sort == 'newest' ? 'selected' : ''; ?>>Mới nhất</option>
             <option value="price_asc" <?php echo $sort == 'price_asc' ? 'selected' : ''; ?>>Giá tăng dần</option>
@@ -108,9 +138,6 @@ $categories = $conn->query("SELECT DISTINCT category_id FROM product WHERE categ
         <button type="submit" class="btn btn-primary">
             <i class="fas fa-search"></i> Tìm kiếm
         </button>
-        <a href="products.php" class="btn btn-secondary">
-            <i class="fas fa-redo"></i> Reset
-        </a>
     </form>
 </div>
 
@@ -118,14 +145,6 @@ $categories = $conn->query("SELECT DISTINCT category_id FROM product WHERE categ
 <div class="card">
     <div class="card-header">
         <h3 class="card-title">Danh sách sản phẩm (<?php echo $total; ?> sản phẩm)</h3>
-        <div style="display: flex; gap: 10px;">
-            <button class="btn btn-sm btn-success" onclick="exportExcel()" title="Xuất file Excel">
-                <i class="fas fa-file-excel"></i> Export Excel
-            </button>
-            <button class="btn btn-sm btn-info" onclick="printTable()" title="In danh sách">
-                <i class="fas fa-print"></i> In
-            </button>
-        </div>
     </div>
     
     <div style="overflow-x: auto;">
@@ -249,68 +268,6 @@ $categories = $conn->query("SELECT DISTINCT category_id FROM product WHERE categ
 </div>
 
 <script>
-function exportExcel() {
-    // Build export URL with current filters
-    const urlParams = new URLSearchParams(window.location.search);
-    const search = urlParams.get('search') || '';
-    const category = urlParams.get('category') || '';
-    
-    let exportUrl = 'export_products.php?';
-    if (search) exportUrl += 'search=' + encodeURIComponent(search) + '&';
-    if (category) exportUrl += 'category=' + encodeURIComponent(category);
-    
-    // Show loading
-    const btn = event.target.closest('button');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xuất...';
-    btn.disabled = true;
-    
-    // Trigger download
-    window.location.href = exportUrl;
-    
-    // Reset button after delay
-    setTimeout(() => {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    }, 2000);
-}
-
-function printTable() {
-    const printContent = document.querySelector('.data-table').outerHTML;
-    const printWindow = window.open('', '', 'width=900,height=600');
-    printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Danh sách sản phẩm - DNQDH Shop</title>
-            <style>
-                body { font-family: Arial, sans-serif; padding: 20px; }
-                h1 { text-align: center; margin-bottom: 20px; }
-                table { width: 100%; border-collapse: collapse; }
-                th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-                th { background: #f5f5f5; font-weight: bold; }
-                img { display: none; }
-                .btn, button, a { display: none !important; }
-                @media print {
-                    body { padding: 0; }
-                }
-            </style>
-        </head>
-        <body>
-            <h1>Danh sách sản phẩm - DNQDH Shop</h1>
-            <p>Ngày xuất: ${new Date().toLocaleDateString('vi-VN')} ${new Date().toLocaleTimeString('vi-VN')}</p>
-            ${printContent}
-        </body>
-        </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-    }, 250);
-}
-
 function confirmDelete(message) {
     return confirm(message);
 }

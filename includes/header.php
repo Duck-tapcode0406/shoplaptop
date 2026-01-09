@@ -40,6 +40,18 @@ if ($check_categories && $check_categories->num_rows > 0) {
 
 // Lấy địa điểm hiện tại (từ session hoặc mặc định)
 $current_location = isset($_SESSION['user_location']) ? $_SESSION['user_location'] : 'Hồ Chí Minh';
+
+// Check if user is admin (for view-only mode)
+$is_admin_view_mode = false;
+if (isset($_SESSION['user_id'])) {
+    $user_id = $_SESSION['user_id'];
+    $admin_check = $conn->prepare("SELECT is_admin FROM user WHERE id = ?");
+    $admin_check->bind_param('i', $user_id);
+    $admin_check->execute();
+    $admin_result = $admin_check->get_result();
+    $admin_data = $admin_result ? $admin_result->fetch_assoc() : null;
+    $is_admin_view_mode = ($admin_data && $admin_data['is_admin'] == 1);
+}
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -208,6 +220,54 @@ $current_location = isset($_SESSION['user_location']) ? $_SESSION['user_location
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Price Filter Section -->
+                    <div class="category-filter-section" style="grid-column: 1 / -1; margin-top: 20px; padding-top: 20px; border-top: 2px solid #e9ecef;">
+                        <h4 style="margin-bottom: 15px; color: #E11B1E; font-size: 14px; font-weight: bold; padding-bottom: 8px; border-bottom: 2px solid #E11B1E;">
+                            <i class="fas fa-filter" style="margin-right: 8px;"></i>Lọc Theo Giá
+                        </h4>
+                        <form method="GET" action="index.php" class="filters-grid-form">
+                            <div class="grid grid-3" style="align-items:end; gap: 12px;">
+                                <div>
+                                    <div class="filter-group">
+                                        <label for="category_min_price"><i class="fas fa-dollar-sign" style="margin-right: 8px;"></i>Giá tối thiểu</label>
+                                        <select name="min_price" id="category_min_price" class="filter-group input">
+                                            <option value="">Chọn giá tối thiểu</option>
+                                            <option value="0" <?php echo (isset($_GET['min_price']) && $_GET['min_price'] == '0') ? 'selected' : ''; ?>>0</option>
+                                            <option value="5000000" <?php echo (isset($_GET['min_price']) && $_GET['min_price'] == '5000000') ? 'selected' : ''; ?>>5 triệu</option>
+                                            <option value="10000000" <?php echo (isset($_GET['min_price']) && $_GET['min_price'] == '10000000') ? 'selected' : ''; ?>>10 triệu</option>
+                                            <option value="15000000" <?php echo (isset($_GET['min_price']) && $_GET['min_price'] == '15000000') ? 'selected' : ''; ?>>15 triệu</option>
+                                            <option value="20000000" <?php echo (isset($_GET['min_price']) && $_GET['min_price'] == '20000000') ? 'selected' : ''; ?>>20 triệu</option>
+                                            <option value="50000000" <?php echo (isset($_GET['min_price']) && $_GET['min_price'] == '50000000') ? 'selected' : ''; ?>>50 triệu</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="filter-group">
+                                        <label for="category_max_price"><i class="fas fa-dollar-sign" style="margin-right: 8px;"></i>Giá tối đa</label>
+                                        <select name="max_price" id="category_max_price" class="filter-group input">
+                                            <option value="">Chọn giá tối đa</option>
+                                            <option value="5000000" <?php echo (isset($_GET['max_price']) && $_GET['max_price'] == '5000000') ? 'selected' : ''; ?>>5 triệu</option>
+                                            <option value="10000000" <?php echo (isset($_GET['max_price']) && $_GET['max_price'] == '10000000') ? 'selected' : ''; ?>>10 triệu</option>
+                                            <option value="15000000" <?php echo (isset($_GET['max_price']) && $_GET['max_price'] == '15000000') ? 'selected' : ''; ?>>15 triệu</option>
+                                            <option value="30000000" <?php echo (isset($_GET['max_price']) && $_GET['max_price'] == '30000000') ? 'selected' : ''; ?>>30 triệu</option>
+                                            <option value="50000000" <?php echo (isset($_GET['max_price']) && $_GET['max_price'] == '50000000') ? 'selected' : ''; ?>>50 triệu</option>
+                                            <option value="100000000" <?php echo (isset($_GET['max_price']) && $_GET['max_price'] == '100000000') ? 'selected' : ''; ?>>100 triệu</option>
+                                            <option value="999999999" <?php echo (isset($_GET['max_price']) && $_GET['max_price'] == '999999999') ? 'selected' : ''; ?>>Không giới hạn</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style="display:flex;gap:12px;justify-content:flex-end;">
+                                    <button type="submit" class="btn btn-primary" style="height:44px;min-width:120px;">
+                                        <i class="fas fa-sliders-h"></i> Lọc
+                                    </button>
+                                    <a href="index.php" class="btn btn-secondary" style="height:44px;min-width:120px;display:flex;align-items:center;justify-content:center;text-decoration:none;">
+                                        × Xóa Lọc
+                                    </a>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
 
@@ -253,7 +313,8 @@ $current_location = isset($_SESSION['user_location']) ? $_SESSION['user_location
                 </form>
             </div>
 
-            <!-- Shopping Cart -->
+            <!-- Shopping Cart (Hidden for admin view mode) -->
+            <?php if (!$is_admin_view_mode): ?>
             <a href="cart.php" class="header-cart">
                 <i class="fas fa-shopping-cart" style="font-size: 20px;"></i>
                 <span>Giỏ hàng</span>
@@ -261,39 +322,67 @@ $current_location = isset($_SESSION['user_location']) ? $_SESSION['user_location
                     <span class="header-cart-badge"><?php echo $cart_count; ?></span>
                 <?php endif; ?>
             </a>
+            <?php endif; ?>
 
             <!-- User Profile -->
             <div class="header-dropdown" id="user-dropdown">
                 <?php if (isset($_SESSION['user_id'])): ?>
                     <button class="header-user" onclick="toggleDropdown('user-dropdown')">
                         <i class="fas fa-user-circle" style="font-size: 20px;"></i>
-                        <span class="header-user-name"><?php echo htmlspecialchars($_SESSION['username'] ?? 'Tài khoản'); ?></span>
+                        <span class="header-user-name">
+                            <?php 
+                            if ($is_admin_view_mode) {
+                                echo htmlspecialchars($_SESSION['username'] ?? 'Admin') . ' <span style="font-size: 12px; color: #999;">(Admin View)</span>';
+                            } else {
+                                echo htmlspecialchars($_SESSION['username'] ?? 'Tài khoản');
+                            }
+                            ?>
+                        </span>
                         <i class="fas fa-chevron-down"></i>
                     </button>
                     <div class="header-dropdown-menu user-dropdown-menu">
-                        <div class="user-dropdown-header">
-                            <?php echo htmlspecialchars($_SESSION['username']); ?>
-                        </div>
-                        <a href="user.php" class="user-dropdown-item">
-                            <i class="fas fa-user"></i>
-                            Thông tin tài khoản
-                        </a>
-                        <a href="addresses.php" class="user-dropdown-item">
-                            <i class="fas fa-map-marker-alt"></i>
-                            Địa chỉ giao hàng
-                        </a>
-                        <a href="history.php" class="user-dropdown-item">
-                            <i class="fas fa-history"></i>
-                            Đơn hàng của tôi
-                        </a>
-                        <a href="wishlist.php" class="user-dropdown-item">
-                            <i class="fas fa-heart"></i>
-                            Sản phẩm yêu thích
-                        </a>
-                        <a href="logout.php" class="user-dropdown-item">
-                            <i class="fas fa-sign-out-alt"></i>
-                            Đăng xuất
-                        </a>
+                        <?php if ($is_admin_view_mode): ?>
+                            <!-- Admin View Mode - Only show admin options -->
+                            <div class="user-dropdown-header">
+                                <?php echo htmlspecialchars($_SESSION['username']); ?> <span style="color: #999; font-size: 11px;">(Admin)</span>
+                            </div>
+                            <div style="padding: 10px 15px; background: #fff3cd; border-bottom: 1px solid #eee; font-size: 12px; color: #856404;">
+                                <i class="fas fa-info-circle"></i> Chế độ xem admin - Chỉ xem, không thể mua hàng
+                            </div>
+                            <a href="admin/index.php" class="user-dropdown-item">
+                                <i class="fas fa-tachometer-alt"></i>
+                                Quay về trang admin
+                            </a>
+                            <a href="logout.php" class="user-dropdown-item">
+                                <i class="fas fa-sign-out-alt"></i>
+                                Đăng xuất
+                            </a>
+                        <?php else: ?>
+                            <!-- Normal User Mode -->
+                            <div class="user-dropdown-header">
+                                <?php echo htmlspecialchars($_SESSION['username']); ?>
+                            </div>
+                            <a href="user.php" class="user-dropdown-item">
+                                <i class="fas fa-user"></i>
+                                Thông tin tài khoản
+                            </a>
+                            <a href="addresses.php" class="user-dropdown-item">
+                                <i class="fas fa-map-marker-alt"></i>
+                                Địa chỉ giao hàng
+                            </a>
+                            <a href="history.php" class="user-dropdown-item">
+                                <i class="fas fa-history"></i>
+                                Đơn hàng của tôi
+                            </a>
+                            <a href="wishlist.php" class="user-dropdown-item">
+                                <i class="fas fa-heart"></i>
+                                Sản phẩm yêu thích
+                            </a>
+                            <a href="logout.php" class="user-dropdown-item">
+                                <i class="fas fa-sign-out-alt"></i>
+                                Đăng xuất
+                            </a>
+                        <?php endif; ?>
                     </div>
                 <?php else: ?>
                     <a href="login.php" class="header-user">

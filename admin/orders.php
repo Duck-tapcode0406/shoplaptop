@@ -100,6 +100,9 @@ while ($row = $status_query->fetch_assoc()) {
             <span>Đơn hàng</span>
         </div>
     </div>
+    <a href="index.php" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Quay lại
+    </a>
 </div>
 
 <?php if ($error_message): ?>
@@ -156,9 +159,6 @@ while ($row = $status_query->fetch_assoc()) {
         <button type="submit" class="btn btn-primary">
             <i class="fas fa-search"></i> Lọc
         </button>
-        <a href="orders.php" class="btn btn-secondary">
-            <i class="fas fa-redo"></i> Reset
-        </a>
     </form>
 </div>
 
@@ -166,9 +166,6 @@ while ($row = $status_query->fetch_assoc()) {
 <div class="card">
     <div class="card-header">
         <h3 class="card-title">Danh sách đơn hàng (<?php echo $total; ?> đơn)</h3>
-        <button class="btn btn-sm btn-success" onclick="exportOrders()">
-            <i class="fas fa-file-excel"></i> Export
-        </button>
     </div>
     
     <div style="overflow-x: auto;">
@@ -226,7 +223,9 @@ while ($row = $status_query->fetch_assoc()) {
                                 'cancelled' => 'Đã hủy'
                             ];
                             ?>
-                            <span class="status-badge <?php echo $status_class[$order['status']] ?? 'info'; ?>">
+                            <span class="status-badge <?php echo $status_class[$order['status']] ?? 'info'; ?>" 
+                                  id="status-badge-<?php echo $order['id']; ?>"
+                                  data-order-id="<?php echo $order['id']; ?>">
                                 <?php echo $status_text[$order['status']] ?? $order['status']; ?>
                             </span>
                         </td>
@@ -236,7 +235,11 @@ while ($row = $status_query->fetch_assoc()) {
                                    class="btn btn-sm btn-info btn-icon" title="Chi tiết">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                <button class="btn btn-sm btn-warning btn-icon" title="Cập nhật"
+                                <button class="btn btn-sm btn-warning btn-icon" 
+                                        title="Cập nhật trạng thái"
+                                        id="update-btn-<?php echo $order['id']; ?>"
+                                        data-order-id="<?php echo $order['id']; ?>"
+                                        data-current-status="<?php echo $order['status']; ?>"
                                         onclick="updateStatus(<?php echo $order['id']; ?>, '<?php echo $order['status']; ?>')">
                                     <i class="fas fa-edit"></i>
                                 </button>
@@ -310,15 +313,18 @@ while ($row = $status_query->fetch_assoc()) {
             </div>
             
             <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button type="button" class="btn btn-secondary" onclick="closeStatusModal()">Hủy</button>
-                <button type="submit" class="btn btn-primary">Cập nhật</button>
+                <button type="button" class="btn btn-secondary" id="cancelStatusBtn" onclick="closeStatusModal()">Hủy</button>
+                <button type="submit" class="btn btn-primary" id="submitStatusBtn">Cập nhật</button>
             </div>
         </form>
     </div>
 </div>
 
 <script>
+let currentOrderId = null;
+
 function updateStatus(orderId, currentStatus) {
+    currentOrderId = orderId;
     document.getElementById('statusOrderId').value = orderId;
     document.getElementById('newStatus').value = currentStatus;
     document.getElementById('statusModal').style.display = 'flex';
@@ -326,16 +332,213 @@ function updateStatus(orderId, currentStatus) {
 
 function closeStatusModal() {
     document.getElementById('statusModal').style.display = 'none';
+    currentOrderId = null;
 }
 
 document.getElementById('statusModal').addEventListener('click', function(e) {
     if (e.target === this) closeStatusModal();
 });
 
-function exportOrders() {
-    alert('Tính năng export đang được phát triển');
+// Handle form submission with AJAX
+document.getElementById('statusModal').querySelector('form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const orderId = document.getElementById('statusOrderId').value;
+    const newStatus = document.getElementById('newStatus').value;
+    const csrfToken = this.querySelector('input[name="csrf_token"]').value;
+    
+    // Disable submit button
+    const submitBtn = document.getElementById('submitStatusBtn');
+    const cancelBtn = document.getElementById('cancelStatusBtn');
+    const originalSubmitText = submitBtn.innerHTML;
+    
+    submitBtn.disabled = true;
+    cancelBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang cập nhật...';
+    
+    // Send AJAX request
+    const formData = new FormData();
+    formData.append('order_id', orderId);
+    formData.append('new_status', newStatus);
+    formData.append('csrf_token', csrfToken);
+    
+    fetch('api/update_order_status.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            const newStatus = data.data?.new_status || data.new_status;
+            const statusText = data.data?.status_text || data.status_text || '';
+            const statusClass = data.data?.status_class || data.status_class || 'info';
+            
+            // Update status badge in the table
+            const statusBadge = document.getElementById('status-badge-' + orderId);
+            if (statusBadge) {
+                statusBadge.className = 'status-badge ' + statusClass;
+                statusBadge.textContent = statusText;
+                statusBadge.setAttribute('data-order-id', orderId);
+            }
+            
+            // Update button edit (btn btn-warning btn-icon) với trạng thái mới
+            const updateBtn = document.getElementById('update-btn-' + orderId);
+            if (updateBtn) {
+                updateBtn.setAttribute('data-current-status', newStatus);
+                updateBtn.setAttribute('onclick', `updateStatus(${orderId}, '${newStatus}')`);
+            }
+            
+            // Update status tabs counts
+            if (data.data?.status_counts || data.status_counts) {
+                const counts = data.data?.status_counts || data.status_counts;
+                const totalOrders = data.data?.total_orders || Object.values(counts).reduce((a, b) => a + b, 0);
+                updateStatusTabs(counts, totalOrders);
+            }
+            
+            // Show success message
+            if (typeof showNotification === 'function') {
+                showNotification('success', 'Thành công', data.message || 'Cập nhật trạng thái thành công!');
+            } else {
+                alert(data.message || 'Cập nhật trạng thái thành công!');
+            }
+            
+            // Close modal
+            closeStatusModal();
+        } else {
+            // Show error message
+            if (typeof showNotification === 'function') {
+                showNotification('error', 'Lỗi', data.message || 'Có lỗi xảy ra!');
+            } else {
+                alert(data.message || 'Có lỗi xảy ra!');
+            }
+            
+            // Re-enable buttons
+            submitBtn.disabled = false;
+            cancelBtn.disabled = false;
+            submitBtn.innerHTML = originalSubmitText;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        const errorMsg = 'Có lỗi xảy ra khi cập nhật trạng thái!';
+        if (typeof showNotification === 'function') {
+            showNotification('error', 'Lỗi', errorMsg);
+        } else {
+            alert(errorMsg);
+        }
+        
+        // Re-enable buttons
+        submitBtn.disabled = false;
+        cancelBtn.disabled = false;
+        submitBtn.innerHTML = originalSubmitText;
+    });
+});
+
+function updateStatusTabs(statusCounts, totalOrders) {
+    // Update "Tất cả" tab
+    const allTab = document.querySelector('a[href="orders.php"]');
+    if (allTab) {
+        const text = allTab.textContent.replace(/\d+/, totalOrders);
+        allTab.innerHTML = text.replace(totalOrders, totalOrders);
+        allTab.innerHTML = 'Tất cả (' + totalOrders + ')';
+    }
+    
+    // Update individual status tabs
+    const statusTabs = {
+        'pending': { selector: 'a[href="?status=pending"]', label: 'Chờ xử lý', icon: '<i class="fas fa-clock"></i>' },
+        'processing': { selector: 'a[href="?status=processing"]', label: 'Đang xử lý', icon: '<i class="fas fa-cog"></i>' },
+        'shipped': { selector: 'a[href="?status=shipped"]', label: 'Đang giao', icon: '<i class="fas fa-truck"></i>' },
+        'paid': { selector: 'a[href="?status=paid"]', label: 'Hoàn thành', icon: '<i class="fas fa-check"></i>' },
+        'cancelled': { selector: 'a[href="?status=cancelled"]', label: 'Đã hủy', icon: '<i class="fas fa-times"></i>' }
+    };
+    
+    Object.keys(statusTabs).forEach(status => {
+        const tab = document.querySelector(statusTabs[status].selector);
+        if (tab) {
+            const count = statusCounts[status] || 0;
+            tab.innerHTML = statusTabs[status].icon + ' ' + statusTabs[status].label + ' (' + count + ')';
+        }
+    });
 }
+
+function showNotification(type, title, message) {
+    // Remove existing notifications
+    const existing = document.querySelector('.notification-toast');
+    if (existing) {
+        existing.remove();
+    }
+    
+    // Create notification
+    const notification = document.createElement('div');
+    notification.className = 'notification-toast ' + type;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        animation: slideInRight 0.3s ease;
+        min-width: 300px;
+    `;
+    
+    if (type === 'success') {
+        notification.style.background = '#10b981';
+        notification.style.color = 'white';
+        notification.innerHTML = '<i class="fas fa-check-circle"></i> <strong>' + title + ':</strong> ' + message;
+    } else {
+        notification.style.background = '#ef4444';
+        notification.style.color = 'white';
+        notification.innerHTML = '<i class="fas fa-exclamation-circle"></i> <strong>' + title + ':</strong> ' + message;
+    }
+    
+    document.body.appendChild(notification);
+    
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+// Add CSS animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    @keyframes slideOutRight {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);
+
 </script>
 
 <?php require_once 'includes/admin_footer.php'; ?>
+
+
 

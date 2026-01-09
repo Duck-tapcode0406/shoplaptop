@@ -187,6 +187,12 @@ include 'includes/header.php';
 </head>
 <body>
     <div class="payment-result-container">
+        <!-- Back Button -->
+        <a href="index.php" class="back-button" style="margin-bottom: var(--space-lg);">
+            <i class="fas fa-arrow-left"></i>
+            Quay lại trang chủ
+        </a>
+        
         <div class="result-card">
             <div class="result-header <?php echo $status; ?>">
                 <div class="result-icon">

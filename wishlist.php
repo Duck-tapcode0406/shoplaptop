@@ -193,6 +193,12 @@ if ($wishlist_table_exists) {
 </head>
 <body>
     <div class="wishlist-container">
+        <!-- Back Button -->
+        <a href="index.php" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+            Quay lại trang chủ
+        </a>
+        
         <div class="wishlist-header">
             <h1>
                 <i class="fas fa-heart"></i>

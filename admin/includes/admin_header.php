@@ -19,7 +19,7 @@ $admin_check = $conn->prepare("SELECT is_admin FROM user WHERE id = ?");
 $admin_check->bind_param('i', $user_id);
 $admin_check->execute();
 $admin_result = $admin_check->get_result();
-$admin_data_check = $admin_result->fetch_assoc();
+$admin_data_check = $admin_result ? $admin_result->fetch_assoc() : null;
 
 if (!$admin_data_check || $admin_data_check['is_admin'] != 1) {
     header('Location: ../index.php');
@@ -479,6 +479,7 @@ if ($pending_orders_result) {
         .btn-warning { background: var(--warning); color: var(--dark); }
         .btn-danger { background: var(--danger); color: white; }
         .btn-secondary { background: #e9ecef; color: var(--dark); }
+        .btn-info { background: var(--info); color: white; }
 
         .btn-sm {
             padding: 6px 12px;
@@ -645,9 +646,6 @@ if ($pending_orders_result) {
             </a>
             <a href="orders.php" class="menu-item <?php echo $current_page == 'orders.php' ? 'active' : ''; ?>">
                 <i class="fas fa-shopping-cart"></i> Đơn hàng
-                <?php if ($pending_orders > 0): ?>
-                <span class="badge"><?php echo $pending_orders; ?></span>
-                <?php endif; ?>
             </a>
             <a href="users.php" class="menu-item <?php echo $current_page == 'users.php' ? 'active' : ''; ?>">
                 <i class="fas fa-users"></i> Quản lý người dùng
@@ -681,33 +679,21 @@ if ($pending_orders_result) {
             <input type="text" placeholder="Tìm kiếm...">
         </div>
         <div class="header-actions">
-            <div class="header-icon">
-                <i class="fas fa-bell"></i>
-                <?php if ($pending_orders > 0): ?>
-                <span class="notification-badge"><?php echo $pending_orders; ?></span>
-                <?php endif; ?>
-            </div>
-            <div class="header-icon">
-                <i class="fas fa-envelope"></i>
-            </div>
             <div class="admin-profile">
                 <?php 
                 $avatar_path = '';
                 if (!empty($admin_data['avatar'])) {
-                    // Check if avatar is already a full path
                     if (strpos($admin_data['avatar'], 'uploads/avatars/') !== false || strpos($admin_data['avatar'], '../') === 0) {
                         $avatar_path = '../' . ltrim($admin_data['avatar'], '../');
                     } else {
                         $avatar_path = '../uploads/avatars/' . $admin_data['avatar'];
                     }
                     
-                    // Check if file exists
                     if (!file_exists($avatar_path)) {
                         $avatar_path = '';
                     }
                 }
                 
-                // Fallback to default avatar or generated avatar
                 if (empty($avatar_path)) {
                     $username_escaped = urlencode($admin_data['username'] ?? 'Admin');
                     $avatar_path = "https://ui-avatars.com/api/?name={$username_escaped}&background=6c5ce7&color=fff&size=80";
